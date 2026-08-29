@@ -248,6 +248,13 @@ export default function App() {
     setShowUploadModal(false);
   };
 
+  const handleDeleteArtwork = (artworkId: string) => {
+    setArtworks(prev => prev.filter(art => art.id !== artworkId));
+    if (selectedArtwork?.id === artworkId) {
+      setSelectedArtwork(null);
+    }
+  };
+
   const unreadMessagesCount = inboxMessages.filter(m => !m.read).length;
   const totalLikesCount = artworks.reduce((acc, a) => acc + a.likesCount, 0);
 
@@ -299,6 +306,8 @@ export default function App() {
               onShareQuick={() => setShowContactModal(true)}
               likedArtworkIds={likedArtworkIds}
               onResetFilters={() => setSearchQuery('')}
+              onDeleteArtwork={handleDeleteArtwork}
+              isOwnerMode={isOwnerMode}
             />
           </div>
         )}
@@ -353,6 +362,8 @@ export default function App() {
           onLikeComment={handleLikeComment}
           currentReferralSource={'direct'}
           onShareTracked={() => {}}
+          onDeleteArtwork={handleDeleteArtwork}
+          isOwnerMode={isOwnerMode}
         />
       )}
 

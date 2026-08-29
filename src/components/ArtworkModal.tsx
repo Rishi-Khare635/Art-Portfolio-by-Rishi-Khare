@@ -20,7 +20,8 @@ import {
   Wrench,
   Flame,
   User,
-  Lock
+  Lock,
+  Trash2
 } from 'lucide-react';
 import { Artwork, Comment, PlatformSource } from '../types';
 import { SOCIAL_PLATFORMS } from '../data/socialPlatforms';
@@ -38,6 +39,8 @@ interface ArtworkModalProps {
   onLikeComment: (commentId: string) => void;
   currentReferralSource?: PlatformSource;
   onShareTracked: (source: PlatformSource, campaign?: string) => void;
+  onDeleteArtwork?: (artworkId: string) => void;
+  isOwnerMode?: boolean;
 }
 
 export const ArtworkModal: React.FC<ArtworkModalProps> = ({
@@ -49,7 +52,9 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
   onAddComment,
   onLikeComment,
   currentReferralSource,
-  onShareTracked
+  onShareTracked,
+  onDeleteArtwork,
+  isOwnerMode
 }) => {
   const [commentName, setCommentName] = useState('');
   const [commentHandle, setCommentHandle] = useState('');
@@ -60,6 +65,7 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
   const [copiedPlatform, setCopiedPlatform] = useState<string | null>(null);
   const [isZoomed, setIsZoomed] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'comments' | 'share'>('info');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const directTrackedLink = generateShareUrl(currentReferralSource || 'direct', artwork.id, 'portfolio_view');
 
@@ -365,6 +371,48 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
                   Citation ID: RK-SKETCH-{artwork.id.toUpperCase()}-{artwork.year}
                 </div>
               </div>
+
+              {/* Owner Controls (Delete Artwork) */}
+              {isOwnerMode && onDeleteArtwork && (
+                <div className="p-3.5 rounded-2xl bg-red-950/20 border border-red-500/30 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-red-300 flex items-center gap-1.5">
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      <span>Owner Controls</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Permanently remove this sketch from your portfolio.
+                    </p>
+                  </div>
+
+                  {confirmDelete ? (
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => {
+                          onDeleteArtwork(artwork.id);
+                          onClose();
+                        }}
+                        className="px-3 py-1.5 text-xs font-bold bg-red-600 hover:bg-red-500 text-white rounded-xl transition-all shadow-md active:scale-95"
+                      >
+                        Confirm Delete
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        className="px-2.5 py-1.5 text-xs bg-white/10 hover:bg-white/15 text-slate-300 rounded-xl transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="px-3 py-1.5 text-xs font-semibold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-xl transition-all active:scale-95 flex-shrink-0"
+                    >
+                      Delete Sketch
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Quick Share Teaser */}
               <div className="pt-3 border-t border-white/10 flex items-center justify-between">

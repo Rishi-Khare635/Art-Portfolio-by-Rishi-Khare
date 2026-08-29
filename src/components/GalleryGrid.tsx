@@ -10,6 +10,8 @@ interface GalleryGridProps {
   onShareQuick: (artwork: Artwork, e: React.MouseEvent) => void;
   likedArtworkIds: Set<string>;
   onResetFilters: () => void;
+  onDeleteArtwork?: (artworkId: string) => void;
+  isOwnerMode?: boolean;
 }
 
 export const GalleryGrid: React.FC<GalleryGridProps> = ({
@@ -18,7 +20,9 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
   onLikeArtwork,
   onShareQuick,
   likedArtworkIds,
-  onResetFilters
+  onResetFilters,
+  onDeleteArtwork,
+  isOwnerMode
 }) => {
   const [layoutMode, setLayoutMode] = useState<'standard' | 'dense'>('standard');
 
@@ -95,6 +99,8 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
             onLike={onLikeArtwork}
             onShareQuick={onShareQuick}
             hasLiked={likedArtworkIds.has(art.id)}
+            onDeleteArtwork={onDeleteArtwork}
+            isOwnerMode={isOwnerMode}
           />
         ))}
       </div>

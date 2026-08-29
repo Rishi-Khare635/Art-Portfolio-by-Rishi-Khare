@@ -5,7 +5,8 @@ import {
   Share2, 
   Sparkles, 
   Check, 
-  Copy
+  Copy,
+  Trash2
 } from 'lucide-react';
 import { Artwork } from '../types';
 import { CopyrightWatermark } from './CopyrightWatermark';
@@ -17,6 +18,8 @@ interface ArtworkCardProps {
   onLike: (artworkId: string, e: React.MouseEvent) => void;
   onShareQuick: (artwork: Artwork, e: React.MouseEvent) => void;
   hasLiked: boolean;
+  onDeleteArtwork?: (artworkId: string) => void;
+  isOwnerMode?: boolean;
 }
 
 export const ArtworkCard: React.FC<ArtworkCardProps> = ({
@@ -24,7 +27,9 @@ export const ArtworkCard: React.FC<ArtworkCardProps> = ({
   onSelect,
   onLike,
   onShareQuick,
-  hasLiked
+  hasLiked,
+  onDeleteArtwork,
+  isOwnerMode
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -100,6 +105,21 @@ export const ArtworkCard: React.FC<ArtworkCardProps> = ({
 
         {/* Floating Quick Action Buttons on Hover */}
         <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {isOwnerMode && onDeleteArtwork && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm(`Delete "${artwork.title}" from your portfolio?`)) {
+                  onDeleteArtwork(artwork.id);
+                }
+              }}
+              title="Delete Sketch (Owner)"
+              className="p-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 text-white border border-red-400/30 backdrop-blur-md transition-all active:scale-95 shadow-md"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           <button
             onClick={handleQuickCopy}
             title="Copy Direct Link"
