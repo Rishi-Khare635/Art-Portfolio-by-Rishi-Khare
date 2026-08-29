@@ -2,44 +2,17 @@ import React, { useState, useRef } from 'react';
 import { 
   X, 
   Upload, 
-  Image as ImageIcon, 
-  Sparkles, 
-  Wrench, 
-  Plus, 
-  Check,
-  Layers,
-  Palette
+  Palette,
+  Loader2
 } from 'lucide-react';
 import { Artwork, MediumType } from '../types';
 import confetti from 'canvas-confetti';
+import { compressImageFile } from '../utils/imageCompressor';
 
 interface UploadArtworkModalProps {
   onClose: () => void;
   onAddArtwork: (newArtwork: Artwork) => void;
 }
-
-const PRESET_ART_IMAGES = [
-  {
-    name: 'Cyberpunk Sentinel',
-    url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1000&q=80',
-    medium: 'Character Design' as MediumType
-  },
-  {
-    name: 'Astral Nebula Dreamscape',
-    url: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1000&q=80',
-    medium: 'Concept Art' as MediumType
-  },
-  {
-    name: 'Ink & Flora Study',
-    url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=1000&q=80',
-    medium: 'Ink & Sketch' as MediumType
-  },
-  {
-    name: 'Chromatic Portrait',
-    url: 'https://images.unsplash.com/photo-1578301978693-85fa9c0320b9?auto=format&fit=crop&w=1000&q=80',
-    medium: 'Digital Painting' as MediumType
-  }
-];
 
 const COMMON_TOOLS = [
   'Procreate',
@@ -50,7 +23,8 @@ const COMMON_TOOLS = [
   'Sakura Micron Pens',
   'Blender 3D',
   'Fountain Pen',
-  'Gouache / Oil'
+  'Gouache / Oil',
+  'Graphite Pencils'
 ];
 
 export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
@@ -60,28 +34,38 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [medium, setMedium] = useState<MediumType>('Concept Art');
-  const [tools, setTools] = useState<string[]>(['Procreate', 'Photoshop CC']);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [medium, setMedium] = useState<MediumType>('Manga & Line Art');
+  const [tools, setTools] = useState<string[]>(['Micron Pens', 'Ink']);
   const [customTool, setCustomTool] = useState('');
-  const [dimensions, setDimensions] = useState('3840 x 2160 px');
-  const [year, setYear] = useState(2026);
-  const [tagsInput, setTagsInput] = useState('Concept, Lighting, Portfolio');
+  const [dimensions, setDimensions] = useState('A4 (210 x 297 mm)');
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [tagsInput, setTagsInput] = useState('Original, Line Art, Sketch');
   const [featured, setFeatured] = useState(true);
   const [forSale, setForSale] = useState(false);
   const [price, setPrice] = useState('$150');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setImageUrl(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+      setIsProcessingImage(true);
+      try {
+        const compressedDataUrl = await compressImageFile(file, 1600, 0.85);
+        setImageUrl(compressedDataUrl);
+      } catch (err) {
+        console.error('Image compression failed, using direct data url', err);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (event.target?.result) {
+            setImageUrl(event.target.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setIsProcessingImage(false);
+      }
     }
   };
 
@@ -102,9 +86,8 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !imageUrl) return;
 
-    const finalImage = imageUrl || PRESET_ART_IMAGES[0].url;
     const parsedTags = tagsInput
       .split(',')
       .map(t => t.trim().replace(/^#/, ''))
@@ -113,16 +96,16 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
     const newArtwork: Artwork = {
       id: `art-${Date.now()}`,
       title: title.trim(),
-      description: description.trim() || 'A new original drawing and portfolio study by Rishi Khare.',
-      imageUrl: finalImage,
+      description: description.trim() || 'An original artwork and study by Rishi Khare.',
+      imageUrl,
       medium,
-      toolsUsed: tools.length > 0 ? tools : ['Digital Media'],
-      dimensions: dimensions.trim(),
-      year,
-      tags: parsedTags.length > 0 ? parsedTags : ['OriginalArt', 'Portfolio'],
+      toolsUsed: tools.length > 0 ? tools : ['Drawing Pen'],
+      dimensions: dimensions.trim() || 'A4 Sketchbook',
+      year: Number(year) || new Date().getFullYear(),
+      tags: parsedTags.length > 0 ? parsedTags : ['OriginalArt'],
       featured,
-      likesCount: 1,
-      viewsCount: 1,
+      likesCount: 0,
+      viewsCount: 0,
       sharesCount: 0,
       commentsCount: 0,
       createdAt: Date.now(),
@@ -135,9 +118,9 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
     onClose();
 
     confetti({
-      particleCount: 40,
+      particleCount: 45,
       spread: 60,
-      colors: ['#f43f5e', '#fb7185', '#fda4af']
+      colors: ['#6366f1', '#a855f7', '#ec4899']
     });
   };
 
@@ -155,10 +138,10 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-bold text-white font-display">
-                Publish New Artwork
+                Upload New Artwork
               </h2>
               <p className="text-xs text-slate-300">
-                Add drawings, sketches, or concept pieces to your public portfolio.
+                Publish your own drawing or sketch directly to the live gallery.
               </p>
             </div>
           </div>
@@ -175,15 +158,20 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
           
           {/* Image Upload / Drop Area */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-              1. Artwork Visual File
+            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+              <span>1. Artwork Image <span className="text-pink-400">*</span></span>
+              {imageUrl && <span className="text-emerald-400 font-normal lowercase">✓ Image ready</span>}
             </label>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Dropzone / Upload button */}
               <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-white/15 hover:border-indigo-400 rounded-3xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-white/5 hover:bg-white/10 backdrop-blur-md group"
+                className={`border-2 border-dashed rounded-3xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all backdrop-blur-md group ${
+                  imageUrl 
+                    ? 'border-emerald-500/40 bg-emerald-950/10 hover:border-emerald-400' 
+                    : 'border-white/15 hover:border-indigo-400 bg-white/5 hover:bg-white/10'
+                }`}
               >
                 <input 
                   type="file" 
@@ -193,13 +181,19 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
                   className="hidden" 
                 />
                 <div className="p-3 rounded-2xl bg-white/10 group-hover:bg-indigo-500/20 text-slate-300 group-hover:text-indigo-400 mb-2 transition-all">
-                  <Upload className="w-6 h-6" />
+                  {isProcessingImage ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                  ) : (
+                    <Upload className="w-6 h-6" />
+                  )}
                 </div>
-                <div className="text-xs font-bold text-white">Click or drag image file</div>
-                <div className="text-[10px] text-slate-400 mt-1">PNG, JPG, WEBP up to 25MB</div>
+                <div className="text-xs font-bold text-white">
+                  {isProcessingImage ? 'Optimizing Image...' : 'Click or Drag Artwork File'}
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1">PNG, JPG, WEBP formats</div>
               </div>
 
-              {/* Image Preview & Preset Selection */}
+              {/* Image Preview & URL input */}
               <div className="flex flex-col justify-between space-y-2">
                 {imageUrl ? (
                   <div className="relative h-28 w-full rounded-2xl overflow-hidden border border-white/15 bg-black/40">
@@ -213,29 +207,14 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div>
-                    <div className="text-[11px] text-slate-300 mb-1.5 font-medium">Or choose a studio drawing preset:</div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {PRESET_ART_IMAGES.map((preset, idx) => (
-                        <button
-                          type="button"
-                          key={idx}
-                          onClick={() => {
-                            setImageUrl(preset.url);
-                            setMedium(preset.medium);
-                          }}
-                          className="h-16 rounded-xl overflow-hidden border border-white/10 hover:border-indigo-400 relative group"
-                        >
-                          <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        </button>
-                      ))}
-                    </div>
+                  <div className="h-28 rounded-2xl border border-white/10 bg-white/[0.02] flex items-center justify-center text-xs text-slate-400">
+                    No image chosen yet
                   </div>
                 )}
 
                 <input
                   type="url"
-                  value={imageUrl}
+                  value={imageUrl.startsWith('data:') ? '' : imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
                   placeholder="Or paste external image URL..."
                   className="w-full bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
@@ -248,26 +227,26 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Artwork Title *
+                2. Artwork Title <span className="text-pink-400">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Celestial Wanderer, Ronin Blade..."
-                className="w-full bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+                placeholder="e.g. Manga Ink Study, Character Concept..."
+                className="w-full bg-black/30 text-sm text-white placeholder-slate-500 px-4 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Medium / Category
+                3. Category / Style
               </label>
               <select
                 value={medium}
                 onChange={(e) => setMedium(e.target.value as MediumType)}
-                className="w-full bg-black/30 text-xs text-white px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none cursor-pointer backdrop-blur-md"
+                className="w-full bg-black/30 text-sm text-white px-4 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
               >
                 <option value="Character Sketches" className="bg-[#161828]">Character Sketches</option>
                 <option value="Manga & Line Art" className="bg-[#161828]">Manga & Line Art</option>
@@ -278,26 +257,43 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
             </div>
           </div>
 
-          {/* Tools & Software Used */}
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+              4. Concept Notes & Description
+            </label>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the backstory, linework technique, inspirations, or anatomy breakdown..."
+              className="w-full bg-black/30 text-xs text-white placeholder-slate-500 p-3.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md resize-none"
+            />
+          </div>
+
+          {/* Tools & Mediums Used */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-              Tools & Software Used
+              5. Tools & Mediums Used
             </label>
-            <div className="flex flex-wrap gap-1.5">
-              {COMMON_TOOLS.map((tool) => (
-                <button
-                  type="button"
-                  key={tool}
-                  onClick={() => toggleTool(tool)}
-                  className={`px-3 py-1.5 rounded-xl text-xs transition-all backdrop-blur-md ${
-                    tools.includes(tool)
-                      ? 'bg-indigo-600/25 text-indigo-300 border border-indigo-500/50 font-semibold'
-                      : 'bg-white/5 text-slate-400 border border-white/10 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {tools.includes(tool) ? `✓ ${tool}` : `+ ${tool}`}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {COMMON_TOOLS.map((tool) => {
+                const isSelected = tools.includes(tool);
+                return (
+                  <button
+                    type="button"
+                    key={tool}
+                    onClick={() => toggleTool(tool)}
+                    className={`px-3 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white font-medium border border-indigo-400/50 shadow-md shadow-indigo-900/30'
+                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+                    }`}
+                  >
+                    <span>{tool}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex gap-2 pt-1">
@@ -305,105 +301,83 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
                 type="text"
                 value={customTool}
                 onChange={(e) => setCustomTool(e.target.value)}
-                placeholder="Add other tool (e.g. Krita, Rotring Pen)..."
-                className="flex-1 bg-black/30 text-xs text-white placeholder-slate-500 px-3 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+                placeholder="Add custom pen, software, or paper type..."
+                className="flex-1 bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addCustomTool();
+                  }
+                }}
               />
               <button
                 type="button"
                 onClick={addCustomTool}
-                className="px-3.5 py-2 bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold rounded-xl border border-white/15 active:scale-95"
+                className="px-3.5 py-2 bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold rounded-xl border border-white/15 transition-all"
               >
-                Add
+                Add Tool
               </button>
             </div>
           </div>
 
-          {/* Description & Concept */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-              Concept & Process Description
-            </label>
-            <textarea
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Explain the background story, color palette choices, lighting techniques, or project intentions..."
-              className="w-full bg-black/30 text-xs text-white placeholder-slate-500 p-3 rounded-2xl border border-white/15 focus:border-indigo-500 focus:outline-none resize-none backdrop-blur-md"
-            />
-          </div>
-
-          {/* Dimensions, Year, Tags */}
+          {/* Tags & Dimensions */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-300">Dimensions / Res</label>
-              <input
-                type="text"
-                value={dimensions}
-                onChange={(e) => setDimensions(e.target.value)}
-                placeholder="e.g. 3840 x 2160 px"
-                className="w-full bg-black/30 text-xs text-white px-3 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-300">Creation Year</label>
-              <input
-                type="number"
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="w-full bg-black/30 text-xs text-white px-3 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-300">Tags (comma separated)</label>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                6. Comma-Separated Tags
+              </label>
               <input
                 type="text"
                 value={tagsInput}
                 onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="Sci-Fi, Character, Sketch"
-                className="w-full bg-black/30 text-xs text-white px-3 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+                placeholder="Naruto, LineArt, Crosshatch, Pencil"
+                className="w-full bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Year Created
+              </label>
+              <input
+                type="number"
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+                className="w-full bg-black/30 text-xs text-white px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
               />
             </div>
           </div>
 
-          {/* Options: Featured & For Sale */}
-          <div className="flex items-center gap-6 pt-2">
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-              <input
-                type="checkbox"
-                checked={featured}
-                onChange={(e) => setFeatured(e.target.checked)}
-                className="rounded border-white/20 bg-black/40 text-indigo-500 focus:ring-indigo-500"
-              />
-              <span>Highlight as Featured Artwork</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-              <input
-                type="checkbox"
-                checked={forSale}
-                onChange={(e) => setForSale(e.target.checked)}
-                className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500"
-              />
-              <span>Available for Acquisition / Print</span>
+          {/* Featured checkbox */}
+          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
+            <input
+              type="checkbox"
+              id="featured-check"
+              checked={featured}
+              onChange={(e) => setFeatured(e.target.checked)}
+              className="w-4 h-4 rounded text-indigo-600 bg-black/40 border-white/20 focus:ring-indigo-500"
+            />
+            <label htmlFor="featured-check" className="text-xs text-slate-200 cursor-pointer font-medium">
+              Pin as Featured Artwork (Highlights in gallery)
             </label>
           </div>
 
-          {/* Submit */}
-          <div className="pt-4 border-t border-white/10 flex justify-end gap-3">
+          {/* Submit Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-semibold rounded-xl border border-white/10 transition-all active:scale-95"
+              className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all"
             >
               Cancel
             </button>
+
             <button
               type="submit"
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-900/40 transition-all active:scale-95 flex items-center gap-1.5 border border-indigo-500/30"
+              disabled={!title.trim() || !imageUrl || isProcessingImage}
+              className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-900/40 border border-indigo-400/30 transition-all active:scale-95 flex items-center gap-2"
             >
-              <Check className="w-4 h-4" />
+              <Palette className="w-4 h-4" />
               <span>Publish to Portfolio</span>
             </button>
           </div>

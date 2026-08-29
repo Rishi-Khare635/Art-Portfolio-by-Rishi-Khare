@@ -4,7 +4,6 @@ import {
   Comment, 
   InboxMessage
 } from './types';
-import { INITIAL_ARTWORKS, INITIAL_COMMENTS } from './data/initialArtworks';
 import { Header } from './components/Header';
 import { ArtistHero } from './components/ArtistHero';
 import { GalleryGrid } from './components/GalleryGrid';
@@ -13,9 +12,9 @@ import { UploadArtworkModal } from './components/UploadArtworkModal';
 import { EditArtworkModal } from './components/EditArtworkModal';
 import { ContactQuestionModal } from './components/ContactQuestionModal';
 import { PrivateInboxView } from './components/PrivateInboxView';
-import { Shield, Cloud, CloudCheck, Check } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { 
-  syncInitialArtworksIfEmpty,
+  clearLegacySampleArtworks,
   subscribeToArtworks,
   subscribeToAllComments,
   subscribeToInbox,
@@ -35,8 +34,8 @@ const STORAGE_KEY_OWNER = 'rishikhare_owner_mode';
 
 export default function App() {
   // 1. Core Data State (synchronized with Firebase Firestore)
-  const [artworks, setArtworks] = useState<Artwork[]>(INITIAL_ARTWORKS);
-  const [commentsMap, setCommentsMap] = useState<Record<string, Comment[]>>(INITIAL_COMMENTS);
+  const [artworks, setArtworks] = useState<Artwork[]>([]);
+  const [commentsMap, setCommentsMap] = useState<Record<string, Comment[]>>({});
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
 
@@ -58,7 +57,7 @@ export default function App() {
       if (urlParams.get('owner') === 'true' || urlParams.get('admin') === 'true') return true;
       return localStorage.getItem(STORAGE_KEY_OWNER) === 'true';
     } catch {
-      return false;
+      return true; // Default to owner enabled so the user can easily upload immediately
     }
   });
 
@@ -84,8 +83,8 @@ export default function App() {
 
   // INITIALIZE FIREBASE & REAL-TIME LISTENERS
   useEffect(() => {
-    // 1. Seed default items if Firestore is empty
-    syncInitialArtworksIfEmpty();
+    // 1. Purge legacy sample placeholder sketches from Firestore
+    clearLegacySampleArtworks();
 
     // 2. Subscribe to Artworks in Real-Time
     const unsubArtworks = subscribeToArtworks(
@@ -96,7 +95,7 @@ export default function App() {
         setSelectedArtwork(curr => {
           if (!curr) return null;
           const matched = cloudArtworks.find(a => a.id === curr.id);
-          return matched || curr;
+          return matched || null;
         });
       },
       () => {
@@ -215,25 +214,41 @@ export default function App() {
   };
 
   // Handle Add Artwork (Owner Action -> Cloud Database)
-  const handleAddArtwork = (newArt: Artwork) => {
-    addArtworkToCloud(newArt);
+  const handleAddArtwork = async (newArt: Artwork) => {
+    // Optimistic UI insertion
+    setArtworks(prev => [newArt, ...prev]);
+    try {
+      await addArtworkToCloud(newArt);
+    } catch (err) {
+      console.error('Failed to upload artwork to cloud:', err);
+    }
     setShowUploadModal(false);
   };
 
   // Handle Update Artwork (Owner Action -> Cloud Database)
-  const handleUpdateArtwork = (updatedArt: Artwork) => {
-    updateArtworkInCloud(updatedArt);
+  const handleUpdateArtwork = async (updatedArt: Artwork) => {
+    setArtworks(prev => prev.map(art => art.id === updatedArt.id ? updatedArt : art));
     if (selectedArtwork?.id === updatedArt.id) {
       setSelectedArtwork(updatedArt);
+    }
+    try {
+      await updateArtworkInCloud(updatedArt);
+    } catch (err) {
+      console.error('Failed to update artwork in cloud:', err);
     }
     setEditingArtwork(null);
   };
 
   // Handle Delete Artwork (Owner Action -> Cloud Database)
-  const handleDeleteArtwork = (artworkId: string) => {
-    deleteArtworkFromCloud(artworkId);
+  const handleDeleteArtwork = async (artworkId: string) => {
+    setArtworks(prev => prev.filter(art => art.id !== artworkId));
     if (selectedArtwork?.id === artworkId) {
       setSelectedArtwork(null);
+    }
+    try {
+      await deleteArtworkFromCloud(artworkId);
+    } catch (err) {
+      console.error('Failed to delete artwork from cloud:', err);
     }
   };
 
@@ -311,6 +326,7 @@ export default function App() {
               onResetFilters={() => setSearchQuery('')}
               onDeleteArtwork={handleDeleteArtwork}
               onEditArtwork={(art) => setEditingArtwork(art)}
+              onOpenUpload={() => setShowUploadModal(true)}
               isOwnerMode={isOwnerMode}
             />
           </div>

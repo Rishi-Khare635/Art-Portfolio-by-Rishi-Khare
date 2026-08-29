@@ -4,52 +4,33 @@ import {
   doc, 
   getDocs, 
   setDoc, 
-  updateDoc, 
   deleteDoc, 
-  addDoc, 
   onSnapshot, 
-  query, 
-  orderBy, 
   increment 
 } from '../lib/firebase';
 import { Artwork, Comment, InboxMessage } from '../types';
-import { INITIAL_ARTWORKS, INITIAL_COMMENTS } from '../data/initialArtworks';
 
 const ARTWORKS_COLLECTION = 'artworks';
 const COMMENTS_COLLECTION = 'comments';
 const INBOX_COLLECTION = 'inbox_messages';
 
 /**
- * Initialize / Seed Firestore with default artworks if collection is empty
+ * Remove any legacy default/seeded artworks from Firestore if requested
  */
-export async function syncInitialArtworksIfEmpty(): Promise<void> {
-  try {
-    const artworksRef = collection(db, ARTWORKS_COLLECTION);
-    const snapshot = await getDocs(artworksRef);
-    
-    if (snapshot.empty) {
-      console.log('Firebase Artworks collection is empty. Seeding initial sketches...');
-      // Seed artworks
-      for (const art of INITIAL_ARTWORKS) {
-        await setDoc(doc(db, ARTWORKS_COLLECTION, art.id), {
-          ...art,
-          updatedAt: Date.now()
-        });
-      }
+export async function clearLegacySampleArtworks(): Promise<void> {
+  const sampleIds = [
+    'art-madara-reality',
+    'art-goku-vegeta',
+    'art-madara-portrait',
+    'art-fresh-doodle'
+  ];
 
-      // Seed comments
-      for (const [artId, comments] of Object.entries(INITIAL_COMMENTS)) {
-        for (const comment of comments) {
-          await setDoc(doc(db, COMMENTS_COLLECTION, comment.id), {
-            ...comment,
-            artworkId: artId
-          });
-        }
-      }
-      console.log('Seeding completed successfully!');
+  try {
+    for (const id of sampleIds) {
+      await deleteDoc(doc(db, ARTWORKS_COLLECTION, id));
     }
-  } catch (error) {
-    console.error('Error synchronizing initial Firebase data:', error);
+  } catch (err) {
+    console.warn('Could not clear sample artworks:', err);
   }
 }
 
@@ -64,22 +45,17 @@ export function subscribeToArtworks(
   return onSnapshot(
     artworksRef,
     (snapshot) => {
-      if (!snapshot.empty) {
-        const list: Artwork[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data() as Artwork;
-          list.push({ ...data, id: docSnap.id });
-        });
-        // Sort by createdAt descending or featured
-        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        onUpdate(list);
-      } else {
-        // If empty, fallback to initial artworks
-        onUpdate(INITIAL_ARTWORKS);
-      }
+      const list: Artwork[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as Artwork;
+        list.push({ ...data, id: docSnap.id });
+      });
+      // Sort by createdAt descending or featured
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      onUpdate(list);
     },
     (err) => {
-      console.warn('Firestore realtime error, using local fallback:', err);
+      console.warn('Firestore realtime error:', err);
       onError?.(err);
     }
   );
@@ -160,9 +136,9 @@ export async function toggleArtworkLikeInCloud(
 ): Promise<void> {
   try {
     const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
-    await updateDoc(artDocRef, {
+    await setDoc(artDocRef, {
       likesCount: increment(incrementLike ? 1 : -1)
-    });
+    }, { merge: true });
   } catch (e) {
     console.error('Failed to update like in cloud:', e);
   }
@@ -174,9 +150,9 @@ export async function toggleArtworkLikeInCloud(
 export async function incrementArtworkViewInCloud(artworkId: string): Promise<void> {
   try {
     const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
-    await updateDoc(artDocRef, {
+    await setDoc(artDocRef, {
       viewsCount: increment(1)
-    });
+    }, { merge: true });
   } catch (e) {
     console.warn('Failed to increment view count:', e);
   }
@@ -188,9 +164,9 @@ export async function incrementArtworkViewInCloud(artworkId: string): Promise<vo
 export async function incrementArtworkShareInCloud(artworkId: string): Promise<void> {
   try {
     const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
-    await updateDoc(artDocRef, {
+    await setDoc(artDocRef, {
       sharesCount: increment(1)
-    });
+    }, { merge: true });
   } catch (e) {
     console.warn('Failed to increment share count:', e);
   }
@@ -200,30 +176,45 @@ export async function incrementArtworkShareInCloud(artworkId: string): Promise<v
  * Add a new artwork
  */
 export async function addArtworkToCloud(artwork: Artwork): Promise<void> {
-  const artDocRef = doc(db, ARTWORKS_COLLECTION, artwork.id);
-  await setDoc(artDocRef, {
-    ...artwork,
-    updatedAt: Date.now()
-  });
+  try {
+    const artDocRef = doc(db, ARTWORKS_COLLECTION, artwork.id);
+    await setDoc(artDocRef, {
+      ...artwork,
+      updatedAt: Date.now()
+    });
+  } catch (err) {
+    console.error('Error adding artwork to Firestore:', err);
+    throw err;
+  }
 }
 
 /**
  * Update an existing artwork
  */
 export async function updateArtworkInCloud(artwork: Artwork): Promise<void> {
-  const artDocRef = doc(db, ARTWORKS_COLLECTION, artwork.id);
-  await setDoc(artDocRef, {
-    ...artwork,
-    updatedAt: Date.now()
-  }, { merge: true });
+  try {
+    const artDocRef = doc(db, ARTWORKS_COLLECTION, artwork.id);
+    await setDoc(artDocRef, {
+      ...artwork,
+      updatedAt: Date.now()
+    }, { merge: true });
+  } catch (err) {
+    console.error('Error updating artwork in Firestore:', err);
+    throw err;
+  }
 }
 
 /**
  * Delete an artwork from cloud
  */
 export async function deleteArtworkFromCloud(artworkId: string): Promise<void> {
-  const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
-  await deleteDoc(artDocRef);
+  try {
+    const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
+    await deleteDoc(artDocRef);
+  } catch (err) {
+    console.error('Error deleting artwork from Firestore:', err);
+    throw err;
+  }
 }
 
 /**
@@ -233,21 +224,21 @@ export async function addCommentToCloud(
   artworkId: string, 
   comment: Comment
 ): Promise<void> {
-  // Add comment document
-  const commentDocRef = doc(db, COMMENTS_COLLECTION, comment.id);
-  await setDoc(commentDocRef, {
-    ...comment,
-    artworkId
-  });
-
-  // Increment artwork commentsCount
   try {
-    const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
-    await updateDoc(artDocRef, {
-      commentsCount: increment(1)
+    // Add comment document
+    const commentDocRef = doc(db, COMMENTS_COLLECTION, comment.id);
+    await setDoc(commentDocRef, {
+      ...comment,
+      artworkId
     });
+
+    // Increment artwork commentsCount
+    const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
+    await setDoc(artDocRef, {
+      commentsCount: increment(1)
+    }, { merge: true });
   } catch (err) {
-    console.warn('Could not increment artwork comment count', err);
+    console.warn('Error adding comment:', err);
   }
 }
 
@@ -258,12 +249,12 @@ export async function deleteCommentFromCloud(
   artworkId: string, 
   commentId: string
 ): Promise<void> {
-  await deleteDoc(doc(db, COMMENTS_COLLECTION, commentId));
   try {
+    await deleteDoc(doc(db, COMMENTS_COLLECTION, commentId));
     const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
-    await updateDoc(artDocRef, {
+    await setDoc(artDocRef, {
       commentsCount: increment(-1)
-    });
+    }, { merge: true });
   } catch (err) {
     console.warn('Could not decrement comment count', err);
   }
@@ -273,34 +264,50 @@ export async function deleteCommentFromCloud(
  * Like a comment
  */
 export async function likeCommentInCloud(commentId: string): Promise<void> {
-  const commentDocRef = doc(db, COMMENTS_COLLECTION, commentId);
-  await updateDoc(commentDocRef, {
-    likes: increment(1)
-  });
+  try {
+    const commentDocRef = doc(db, COMMENTS_COLLECTION, commentId);
+    await setDoc(commentDocRef, {
+      likes: increment(1)
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Error liking comment:', err);
+  }
 }
 
 /**
  * Send inquiry / message to cloud inbox
  */
 export async function sendInboxMessageToCloud(message: InboxMessage): Promise<void> {
-  const inboxDocRef = doc(db, INBOX_COLLECTION, message.id);
-  await setDoc(inboxDocRef, message);
+  try {
+    const inboxDocRef = doc(db, INBOX_COLLECTION, message.id);
+    await setDoc(inboxDocRef, message);
+  } catch (err) {
+    console.error('Error sending message:', err);
+  }
 }
 
 /**
  * Mark inbox message read
  */
 export async function markInboxMessageReadInCloud(messageId: string): Promise<void> {
-  const inboxDocRef = doc(db, INBOX_COLLECTION, messageId);
-  await updateDoc(inboxDocRef, {
-    read: true
-  });
+  try {
+    const inboxDocRef = doc(db, INBOX_COLLECTION, messageId);
+    await setDoc(inboxDocRef, {
+      read: true
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Error marking read:', err);
+  }
 }
 
 /**
  * Delete inbox message
  */
 export async function deleteInboxMessageFromCloud(messageId: string): Promise<void> {
-  const inboxDocRef = doc(db, INBOX_COLLECTION, messageId);
-  await deleteDoc(inboxDocRef);
+  try {
+    const inboxDocRef = doc(db, INBOX_COLLECTION, messageId);
+    await deleteDoc(inboxDocRef);
+  } catch (err) {
+    console.warn('Error deleting inbox message:', err);
+  }
 }

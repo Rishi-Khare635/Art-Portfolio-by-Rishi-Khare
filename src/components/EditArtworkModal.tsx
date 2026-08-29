@@ -2,15 +2,12 @@ import React, { useState, useRef } from 'react';
 import { 
   X, 
   Upload, 
-  Sparkles, 
-  Wrench, 
-  Check,
-  Palette,
   Edit3,
-  Image as ImageIcon
+  Loader2
 } from 'lucide-react';
 import { Artwork, MediumType } from '../types';
 import confetti from 'canvas-confetti';
+import { compressImageFile } from '../utils/imageCompressor';
 
 interface EditArtworkModalProps {
   artwork: Artwork;
@@ -28,7 +25,7 @@ const COMMON_TOOLS = [
   'Blender 3D',
   'Fountain Pen',
   'Gouache / Oil',
-  'Pencil & Charcoal'
+  'Graphite Pencils'
 ];
 
 export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
@@ -39,11 +36,12 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
   const [title, setTitle] = useState(artwork.title);
   const [description, setDescription] = useState(artwork.description);
   const [imageUrl, setImageUrl] = useState(artwork.imageUrl);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [medium, setMedium] = useState<MediumType>(artwork.medium);
-  const [tools, setTools] = useState<string[]>(artwork.toolsUsed || ['Digital Media']);
+  const [tools, setTools] = useState<string[]>(artwork.toolsUsed || ['Drawing Pen']);
   const [customTool, setCustomTool] = useState('');
-  const [dimensions, setDimensions] = useState(artwork.dimensions || '3840 x 2160 px');
-  const [year, setYear] = useState(artwork.year || 2024);
+  const [dimensions, setDimensions] = useState(artwork.dimensions || 'A4 Sketchbook');
+  const [year, setYear] = useState(artwork.year || new Date().getFullYear());
   const [tagsInput, setTagsInput] = useState(artwork.tags?.join(', ') || '');
   const [featured, setFeatured] = useState(artwork.featured ?? false);
   const [forSale, setForSale] = useState(artwork.forSale ?? false);
@@ -51,16 +49,25 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setImageUrl(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+      setIsProcessingImage(true);
+      try {
+        const compressedDataUrl = await compressImageFile(file, 1600, 0.85);
+        setImageUrl(compressedDataUrl);
+      } catch (err) {
+        console.error('Image compression failed, using direct data url', err);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (event.target?.result) {
+            setImageUrl(event.target.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setIsProcessingImage(false);
+      }
     }
   };
 
@@ -81,7 +88,7 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !imageUrl) return;
 
     const parsedTags = tagsInput
       .split(',')
@@ -92,11 +99,11 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
       ...artwork,
       title: title.trim(),
       description: description.trim() || 'Original drawing and sketch study by Rishi Khare.',
-      imageUrl: imageUrl || artwork.imageUrl,
+      imageUrl,
       medium,
-      toolsUsed: tools.length > 0 ? tools : ['Digital Media'],
-      dimensions: dimensions.trim(),
-      year,
+      toolsUsed: tools.length > 0 ? tools : ['Drawing Pen'],
+      dimensions: dimensions.trim() || 'A4 Sketchbook',
+      year: Number(year) || new Date().getFullYear(),
       tags: parsedTags.length > 0 ? parsedTags : ['OriginalArt'],
       featured,
       forSale,
@@ -130,7 +137,7 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
                 Edit Artwork Details
               </h2>
               <p className="text-xs text-slate-400">
-                Modify the image, description, tools, tags, or dimensions for "{artwork.title}".
+                Modify image, description, tools, or tags for "{artwork.title}".
               </p>
             </div>
           </div>
@@ -149,7 +156,7 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
               <span>1. Artwork Image File</span>
-              <span className="text-[11px] font-normal text-indigo-300">Replace or update visual</span>
+              <span className="text-[11px] font-normal text-indigo-300">Replace or update image</span>
             </label>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -165,29 +172,29 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
                   accept="image/*" 
                   className="hidden" 
                 />
-                <div className="p-2.5 rounded-xl bg-white/10 group-hover:bg-indigo-500/20 text-slate-300 group-hover:text-indigo-400 mb-2 transition-all">
-                  <Upload className="w-5 h-5" />
+                <div className="p-2.5 rounded-xl bg-white/10 group-hover:bg-indigo-500/20 text-slate-300 group-hover:text-indigo-400 mb-1.5 transition-all">
+                  {isProcessingImage ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                  ) : (
+                    <Upload className="w-5 h-5" />
+                  )}
                 </div>
-                <div className="text-xs font-bold text-white">Click to upload replacement image</div>
+                <div className="text-xs font-bold text-white">
+                  {isProcessingImage ? 'Optimizing Image...' : 'Upload Replacement Image'}
+                </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, WEBP</div>
               </div>
 
-              {/* Current / New Image Preview */}
+              {/* Preview */}
               <div className="flex flex-col justify-between space-y-2">
-                <div className="relative h-28 w-full rounded-2xl overflow-hidden border border-white/15 bg-black/40 flex items-center justify-center">
-                  <img 
-                    src={imageUrl} 
-                    alt="Preview" 
-                    className="w-full h-full object-contain" 
-                    referrerPolicy="no-referrer" 
-                  />
+                <div className="relative h-28 w-full rounded-2xl overflow-hidden border border-white/15 bg-black/40">
+                  <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
-
                 <input
                   type="url"
-                  value={imageUrl}
+                  value={imageUrl.startsWith('data:') ? '' : imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="Or paste image URL..."
+                  placeholder="Or paste external image URL..."
                   className="w-full bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
                 />
               </div>
@@ -198,26 +205,25 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Artwork Title *
+                2. Artwork Title <span className="text-pink-400">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Celestial Wanderer, Ronin Blade..."
-                className="w-full bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+                className="w-full bg-black/30 text-sm text-white placeholder-slate-500 px-4 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Medium / Category
+                3. Category / Style
               </label>
               <select
                 value={medium}
                 onChange={(e) => setMedium(e.target.value as MediumType)}
-                className="w-full bg-black/30 text-xs text-white px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none cursor-pointer backdrop-blur-md"
+                className="w-full bg-black/30 text-sm text-white px-4 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
               >
                 <option value="Character Sketches" className="bg-[#161828]">Character Sketches</option>
                 <option value="Manga & Line Art" className="bg-[#161828]">Manga & Line Art</option>
@@ -228,26 +234,42 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
             </div>
           </div>
 
-          {/* Tools & Software Used */}
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+              4. Concept Notes & Description
+            </label>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-black/30 text-xs text-white placeholder-slate-500 p-3 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md resize-none"
+            />
+          </div>
+
+          {/* Tools Used */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-              Tools & Mediums Used
+              5. Tools & Mediums Used
             </label>
-            <div className="flex flex-wrap gap-1.5">
-              {COMMON_TOOLS.map((tool) => (
-                <button
-                  type="button"
-                  key={tool}
-                  onClick={() => toggleTool(tool)}
-                  className={`px-3 py-1.5 rounded-xl text-xs transition-all backdrop-blur-md ${
-                    tools.includes(tool)
-                      ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 font-semibold'
-                      : 'bg-white/5 text-slate-400 border border-white/10 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {tools.includes(tool) ? `✓ ${tool}` : `+ ${tool}`}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {COMMON_TOOLS.map((tool) => {
+                const isSelected = tools.includes(tool);
+                return (
+                  <button
+                    type="button"
+                    key={tool}
+                    onClick={() => toggleTool(tool)}
+                    className={`px-3 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white font-medium border border-indigo-400/50 shadow-md shadow-indigo-900/30'
+                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+                    }`}
+                  >
+                    <span>{tool}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex gap-2 pt-1">
@@ -255,95 +277,82 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
                 type="text"
                 value={customTool}
                 onChange={(e) => setCustomTool(e.target.value)}
-                placeholder="Add another tool..."
-                className="flex-1 bg-black/30 text-xs text-white placeholder-slate-500 px-3 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+                placeholder="Add custom pen, software, or paper type..."
+                className="flex-1 bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addCustomTool();
+                  }
+                }}
               />
               <button
                 type="button"
                 onClick={addCustomTool}
-                className="px-3.5 py-2 bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold rounded-xl border border-white/15 active:scale-95"
+                className="px-3.5 py-2 bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold rounded-xl border border-white/15 transition-all"
               >
-                Add
+                Add Tool
               </button>
             </div>
           </div>
 
-          {/* Description & Concept Notes */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-              Description, Notes & Context
-            </label>
-            <textarea
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Explain the background story, process, lighting, or notes about this piece..."
-              className="w-full bg-black/30 text-xs text-white placeholder-slate-500 p-3 rounded-2xl border border-white/15 focus:border-indigo-500 focus:outline-none resize-none backdrop-blur-md"
-            />
-          </div>
-
-          {/* Dimensions, Year, Tags */}
+          {/* Tags & Dimensions */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-300">Dimensions / Res</label>
-              <input
-                type="text"
-                value={dimensions}
-                onChange={(e) => setDimensions(e.target.value)}
-                placeholder="e.g. 3840 x 2160 px"
-                className="w-full bg-black/30 text-xs text-white px-3 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-300">Creation Year</label>
-              <input
-                type="number"
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="w-full bg-black/30 text-xs text-white px-3 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-300">Tags (comma separated)</label>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                6. Comma-Separated Tags
+              </label>
               <input
                 type="text"
                 value={tagsInput}
                 onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="Character, Sketch, LineArt"
-                className="w-full bg-black/30 text-xs text-white px-3 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+                className="w-full bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Year Created
+              </label>
+              <input
+                type="number"
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+                className="w-full bg-black/30 text-xs text-white px-3.5 py-2.5 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
               />
             </div>
           </div>
 
-          {/* Options: Featured */}
-          <div className="flex items-center gap-6 pt-1">
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-              <input
-                type="checkbox"
-                checked={featured}
-                onChange={(e) => setFeatured(e.target.checked)}
-                className="rounded border-white/20 bg-black/40 text-indigo-500 focus:ring-indigo-500"
-              />
-              <span>Highlight as Featured Artwork</span>
+          {/* Featured checkbox */}
+          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
+            <input
+              type="checkbox"
+              id="edit-featured-check"
+              checked={featured}
+              onChange={(e) => setFeatured(e.target.checked)}
+              className="w-4 h-4 rounded text-indigo-600 bg-black/40 border-white/20 focus:ring-indigo-500"
+            />
+            <label htmlFor="edit-featured-check" className="text-xs text-slate-200 cursor-pointer font-medium">
+              Pin as Featured Artwork
             </label>
           </div>
 
-          {/* Submit */}
-          <div className="pt-4 border-t border-white/10 flex justify-end gap-3">
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-semibold rounded-xl border border-white/10 transition-all active:scale-95"
+              className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all"
             >
               Cancel
             </button>
+
             <button
               type="submit"
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-900/40 transition-all active:scale-95 flex items-center gap-1.5 border border-indigo-500/30"
+              disabled={!title.trim() || !imageUrl || isProcessingImage}
+              className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-900/40 border border-indigo-400/30 transition-all active:scale-95 flex items-center gap-2"
             >
-              <Check className="w-4 h-4" />
+              <Edit3 className="w-4 h-4" />
               <span>Save Changes</span>
             </button>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Artwork } from '../types';
 import { ArtworkCard } from './ArtworkCard';
-import { Grid, LayoutGrid, Sparkles, FilterX } from 'lucide-react';
+import { Grid, LayoutGrid, Plus, Palette } from 'lucide-react';
 
 interface GalleryGridProps {
   artworks: Artwork[];
@@ -12,6 +12,7 @@ interface GalleryGridProps {
   onResetFilters: () => void;
   onDeleteArtwork?: (artworkId: string) => void;
   onEditArtwork?: (artwork: Artwork) => void;
+  onOpenUpload?: () => void;
   isOwnerMode?: boolean;
 }
 
@@ -24,26 +25,31 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
   onResetFilters,
   onDeleteArtwork,
   onEditArtwork,
+  onOpenUpload,
   isOwnerMode
 }) => {
   const [layoutMode, setLayoutMode] = useState<'standard' | 'dense'>('standard');
 
   if (artworks.length === 0) {
     return (
-      <div className="py-20 text-center max-w-md mx-auto px-4">
-        <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl flex items-center justify-center mx-auto mb-4 text-slate-400 shadow-xl">
-          <FilterX className="w-8 h-8 text-indigo-400" />
+      <div className="py-24 text-center max-w-lg mx-auto px-4">
+        <div className="w-20 h-20 rounded-3xl bg-indigo-600/10 border border-indigo-500/20 backdrop-blur-xl flex items-center justify-center mx-auto mb-5 text-indigo-400 shadow-2xl">
+          <Palette className="w-9 h-9 text-indigo-400 animate-pulse" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-2 font-display">No Artworks Found</h3>
+        <h3 className="text-xl font-bold text-white mb-2 font-display">Gallery is Ready for Your Art</h3>
         <p className="text-sm text-slate-300 mb-6 leading-relaxed">
-          No drawings matched your active search query or medium filter. Try adjusting your tags or search terms.
+          The default sample pieces have been cleared. You can now upload your own original drawings, manga studies, and sketches.
         </p>
-        <button
-          onClick={onResetFilters}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-900/40 transition-all border border-indigo-500/40"
-        >
-          Reset All Filters
-        </button>
+        
+        {isOwnerMode && onOpenUpload && (
+          <button
+            onClick={onOpenUpload}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-2xl shadow-xl shadow-indigo-900/50 border border-indigo-400/40 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Upload Your First Artwork</span>
+          </button>
+        )}
       </div>
     );
   }
