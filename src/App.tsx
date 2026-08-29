@@ -13,36 +13,34 @@ import { UploadArtworkModal } from './components/UploadArtworkModal';
 import { EditArtworkModal } from './components/EditArtworkModal';
 import { ContactQuestionModal } from './components/ContactQuestionModal';
 import { PrivateInboxView } from './components/PrivateInboxView';
-import { Shield, Lock } from 'lucide-react';
+import { Shield, Cloud, CloudCheck, Check } from 'lucide-react';
+import { 
+  syncInitialArtworksIfEmpty,
+  subscribeToArtworks,
+  subscribeToAllComments,
+  subscribeToInbox,
+  toggleArtworkLikeInCloud,
+  addArtworkToCloud,
+  updateArtworkInCloud,
+  deleteArtworkFromCloud,
+  addCommentToCloud,
+  likeCommentInCloud,
+  sendInboxMessageToCloud,
+  markInboxMessageReadInCloud,
+  deleteInboxMessageFromCloud
+} from './services/firebaseService';
 
-const STORAGE_KEY_ARTWORKS = 'rishikhare_artworks_v4';
-const STORAGE_KEY_COMMENTS = 'rishikhare_comments_v4';
 const STORAGE_KEY_LIKES = 'rishikhare_liked_v4';
 const STORAGE_KEY_OWNER = 'rishikhare_owner_mode';
-const STORAGE_KEY_INBOX = 'rishikhare_inbox_v1';
 
 export default function App() {
-  // 1. Core Data State
-  const [artworks, setArtworks] = useState<Artwork[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_ARTWORKS);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_ARTWORKS;
-  });
+  // 1. Core Data State (synchronized with Firebase Firestore)
+  const [artworks, setArtworks] = useState<Artwork[]>(INITIAL_ARTWORKS);
+  const [commentsMap, setCommentsMap] = useState<Record<string, Comment[]>>(INITIAL_COMMENTS);
+  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
 
-  const [commentsMap, setCommentsMap] = useState<Record<string, Comment[]>>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_COMMENTS);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_COMMENTS;
-  });
-
+  // 2. Personal liked status (kept in local visitor storage)
   const [likedArtworkIds, setLikedArtworkIds] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_LIKES);
@@ -51,17 +49,6 @@ export default function App() {
       console.error(e);
     }
     return new Set<string>();
-  });
-
-  // 2. Private Inbox Messages State
-  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_INBOX);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return [];
   });
 
   // 3. Owner / Artist Privacy State
@@ -75,15 +62,6 @@ export default function App() {
     }
   });
 
-  // Save owner mode preference
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_OWNER, String(isOwnerMode));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [isOwnerMode]);
-
   // 4. Navigation & View State
   const [currentView, setCurrentView] = useState<'gallery' | 'inbox'>('gallery');
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
@@ -95,10 +73,57 @@ export default function App() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [showCopyrightAlert, setShowCopyrightAlert] = useState(false);
 
+  // Save owner mode preference
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_OWNER, String(isOwnerMode));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [isOwnerMode]);
+
+  // INITIALIZE FIREBASE & REAL-TIME LISTENERS
+  useEffect(() => {
+    // 1. Seed default items if Firestore is empty
+    syncInitialArtworksIfEmpty();
+
+    // 2. Subscribe to Artworks in Real-Time
+    const unsubArtworks = subscribeToArtworks(
+      (cloudArtworks) => {
+        setArtworks(cloudArtworks);
+        setIsCloudConnected(true);
+        // Keep active selected artwork updated if open
+        setSelectedArtwork(curr => {
+          if (!curr) return null;
+          const matched = cloudArtworks.find(a => a.id === curr.id);
+          return matched || curr;
+        });
+      },
+      () => {
+        setIsCloudConnected(false);
+      }
+    );
+
+    // 3. Subscribe to Comments in Real-Time
+    const unsubComments = subscribeToAllComments((cloudCommentsMap) => {
+      setCommentsMap(cloudCommentsMap);
+    });
+
+    // 4. Subscribe to Private Inbox in Real-Time
+    const unsubInbox = subscribeToInbox((cloudMessages) => {
+      setInboxMessages(cloudMessages);
+    });
+
+    return () => {
+      unsubArtworks();
+      unsubComments();
+      unsubInbox();
+    };
+  }, []);
+
   // Anti-Save / Screenshot Detection Key Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Detect PrintScreen or Save shortcut
       if (
         e.key === 'PrintScreen' || 
         ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S'))
@@ -112,55 +137,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Sync artworks to local storage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_ARTWORKS, JSON.stringify(artworks));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [artworks]);
-
-  // Sync comments to local storage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_COMMENTS, JSON.stringify(commentsMap));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [commentsMap]);
-
-  // Sync inbox messages to local storage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_INBOX, JSON.stringify(inboxMessages));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [inboxMessages]);
-
-  // Handle Send Question to Private Inbox
-  const handleSendMessage = (msgData: Omit<InboxMessage, 'id' | 'timestamp' | 'read'>) => {
-    const newMsg: InboxMessage = {
-      id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-      timestamp: Date.now(),
-      read: false,
-      ...msgData
-    };
-    setInboxMessages(prev => [newMsg, ...prev]);
-  };
-
-  // Handle Delete Inbox Message
-  const handleDeleteMessage = (id: string) => {
-    setInboxMessages(prev => prev.filter(m => m.id !== id));
-  };
-
-  // Handle Toggle Read Status
-  const handleToggleRead = (id: string) => {
-    setInboxMessages(prev => prev.map(m => m.id === id ? { ...m, read: !m.read } : m));
-  };
-
-  // Filter artworks strictly by search
+  // Filter artworks strictly by search query
   const filteredArtworks = useMemo(() => {
     return artworks.filter(art => {
       if (!searchQuery.trim()) return true;
@@ -173,45 +150,47 @@ export default function App() {
     });
   }, [artworks, searchQuery]);
 
-  // Likes & Interactions
+  // Handle Likes (Synced to Cloud Firestore + Local Visitor Memory)
   const handleLikeArtwork = (artworkId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
 
-    setLikedArtworkIds(prev => {
-      const next = new Set(prev);
-      const isCurrentlyLiked = next.has(artworkId);
+    const isCurrentlyLiked = likedArtworkIds.has(artworkId);
+    const nextSet = new Set(likedArtworkIds);
 
-      if (isCurrentlyLiked) {
-        next.delete(artworkId);
-      } else {
-        next.add(artworkId);
-      }
+    if (isCurrentlyLiked) {
+      nextSet.delete(artworkId);
+    } else {
+      nextSet.add(artworkId);
+    }
+    setLikedArtworkIds(nextSet);
 
-      try {
-        localStorage.setItem(STORAGE_KEY_LIKES, JSON.stringify(Array.from(next)));
-      } catch (err) {
-        console.error(err);
-      }
+    try {
+      localStorage.setItem(STORAGE_KEY_LIKES, JSON.stringify(Array.from(nextSet)));
+    } catch (err) {
+      console.error(err);
+    }
 
-      setArtworks(artList => 
-        artList.map(item => {
-          if (item.id === artworkId) {
-            return {
-              ...item,
-              likesCount: isCurrentlyLiked ? Math.max(0, item.likesCount - 1) : item.likesCount + 1
-            };
-          }
-          return item;
-        })
-      );
+    // Optimistic UI update
+    setArtworks(artList => 
+      artList.map(item => {
+        if (item.id === artworkId) {
+          return {
+            ...item,
+            likesCount: isCurrentlyLiked ? Math.max(0, item.likesCount - 1) : item.likesCount + 1
+          };
+        }
+        return item;
+      })
+    );
 
-      return next;
-    });
+    // Sync directly with Cloud Database
+    toggleArtworkLikeInCloud(artworkId, !isCurrentlyLiked);
   };
 
+  // Handle Add Comment (Direct to Cloud Firestore)
   const handleAddComment = (artworkId: string, authorName: string, content: string, isArtist?: boolean) => {
     const newComment: Comment = {
-      id: 'cmt-' + Date.now(),
+      id: 'cmt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
       artworkId,
       authorName: authorName.trim() || 'Fellow Artist',
       content: content.trim(),
@@ -220,53 +199,67 @@ export default function App() {
       isArtist: Boolean(isArtist)
     };
 
+    // Optimistic UI update
     setCommentsMap(prev => ({
       ...prev,
       [artworkId]: [newComment, ...(prev[artworkId] || [])]
     }));
 
-    setArtworks(artList => 
-      artList.map(item => {
-        if (item.id === artworkId) {
-          return { ...item, commentsCount: (item.commentsCount || 0) + 1 };
-        }
-        return item;
-      })
-    );
+    // Send to Cloud Database
+    addCommentToCloud(artworkId, newComment);
   };
 
-  const handleLikeComment = (artworkId: string, commentId: string) => {
-    setCommentsMap(prev => {
-      const artComments = prev[artworkId] || [];
-      return {
-        ...prev,
-        [artworkId]: artComments.map(c => c.id === commentId ? { ...c, likes: c.likes + 1 } : c)
-      };
-    });
+  // Handle Comment Upvote (Synced to Cloud)
+  const handleLikeComment = (_artworkId: string, commentId: string) => {
+    likeCommentInCloud(commentId);
   };
 
+  // Handle Add Artwork (Owner Action -> Cloud Database)
   const handleAddArtwork = (newArt: Artwork) => {
-    setArtworks(prev => [newArt, ...prev]);
+    addArtworkToCloud(newArt);
     setShowUploadModal(false);
   };
 
+  // Handle Update Artwork (Owner Action -> Cloud Database)
   const handleUpdateArtwork = (updatedArt: Artwork) => {
-    setArtworks(prev => prev.map(art => art.id === updatedArt.id ? updatedArt : art));
+    updateArtworkInCloud(updatedArt);
     if (selectedArtwork?.id === updatedArt.id) {
       setSelectedArtwork(updatedArt);
     }
     setEditingArtwork(null);
   };
 
+  // Handle Delete Artwork (Owner Action -> Cloud Database)
   const handleDeleteArtwork = (artworkId: string) => {
-    setArtworks(prev => prev.filter(art => art.id !== artworkId));
+    deleteArtworkFromCloud(artworkId);
     if (selectedArtwork?.id === artworkId) {
       setSelectedArtwork(null);
     }
   };
 
+  // Handle Send Question to Cloud Inbox
+  const handleSendMessage = (msgData: Omit<InboxMessage, 'id' | 'timestamp' | 'read'>) => {
+    const newMsg: InboxMessage = {
+      id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      timestamp: Date.now(),
+      read: false,
+      ...msgData
+    };
+    sendInboxMessageToCloud(newMsg);
+  };
+
+  // Handle Delete Inbox Message
+  const handleDeleteMessage = (id: string) => {
+    deleteInboxMessageFromCloud(id);
+  };
+
+  // Handle Toggle Read Status
+  const handleToggleRead = (id: string) => {
+    markInboxMessageReadInCloud(id);
+  };
+
   const unreadMessagesCount = inboxMessages.filter(m => !m.read).length;
-  const totalLikesCount = artworks.reduce((acc, a) => acc + a.likesCount, 0);
+  const totalLikesCount = artworks.reduce((acc, a) => acc + (a.likesCount || 0), 0);
 
   return (
     <div className="min-h-screen bg-[#0d0f1a] text-slate-100 font-sans selection:bg-indigo-500 selection:text-white flex flex-col antialiased">
@@ -297,7 +290,7 @@ export default function App() {
           />
         ) : (
           <div>
-            {/* Minimal Artist Hero Banner (No face, no category buttons) */}
+            {/* Minimal Artist Hero Banner */}
             <ArtistHero
               artworksCount={artworks.length}
               totalLikes={totalLikesCount}
@@ -330,6 +323,12 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-200 font-display">Rishi Khare</span>
             <span>• Anime Sketches & Line Art</span>
+            {isCloudConnected && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live Cloud Synced
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-4 text-xs">
             <button 
