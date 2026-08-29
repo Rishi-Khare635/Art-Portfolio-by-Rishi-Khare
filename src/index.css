@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: linear-gradient(135deg, #1a1c2c 0%, #4a192c 50%, #121212 100%);
+    color: #f1f5f9;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Syne', 'Plus Jakarta Sans', sans-serif;
+  }
+}
+
+/* Frosted Glass Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(26, 28, 44, 0.6);
+  backdrop-filter: blur(10px);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+  background-clip: content-box;
+}
+
+/* Glass reflections */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Artwork Anti-Theft & Protective Layers */
+.protected-artwork-img {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  -webkit-user-drag: none !important;
+  -khtml-user-drag: none !important;
+  -moz-user-drag: none !important;
+  -o-user-drag: none !important;
+  user-drag: none !important;
+  -webkit-touch-callout: none !important;
+  pointer-events: none;
+}
+
+.artwork-shield {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Print Protection: Stamping bold copyright on any print attempt */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  body::before {
+    content: "© Rishi Khare • All Rights Reserved • Original Protected Artwork. Reproduction is prohibited by law.";
+    visibility: visible;
+    position: fixed;
+    top: 40%;
+    left: 10%;
+    right: 10%;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    color: #000;
+    border: 3px solid #000;
+    padding: 20px;
+  }
+}
+
+
