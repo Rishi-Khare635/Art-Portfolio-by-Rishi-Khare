@@ -2,8 +2,10 @@ import React, { useState, useRef } from 'react';
 import { 
   X, 
   Upload, 
-  Edit3,
-  Loader2
+  Edit3, 
+  Loader2,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { Artwork, MediumType } from '../types';
 import confetti from 'canvas-confetti';
@@ -12,7 +14,7 @@ import { compressImageFile } from '../utils/imageCompressor';
 interface EditArtworkModalProps {
   artwork: Artwork;
   onClose: () => void;
-  onUpdateArtwork: (updatedArtwork: Artwork) => void;
+  onUpdateArtwork: (updatedArtwork: Artwork) => Promise<void> | void;
 }
 
 const COMMON_TOOLS = [
@@ -36,7 +38,11 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
   const [title, setTitle] = useState(artwork.title);
   const [description, setDescription] = useState(artwork.description);
   const [imageUrl, setImageUrl] = useState(artwork.imageUrl);
+  const [imageSizeKb, setImageSizeKb] = useState<number | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isSavingToCloud, setIsSavingToCloud] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const [medium, setMedium] = useState<MediumType>(artwork.medium);
   const [tools, setTools] = useState<string[]>(artwork.toolsUsed || ['Drawing Pen']);
   const [customTool, setCustomTool] = useState('');
@@ -53,18 +59,14 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       setIsProcessingImage(true);
+      setErrorMsg(null);
       try {
-        const compressedDataUrl = await compressImageFile(file, 1600, 0.85);
-        setImageUrl(compressedDataUrl);
+        const { dataUrl, sizeKb } = await compressImageFile(file, 1200, 0.8);
+        setImageUrl(dataUrl);
+        setImageSizeKb(sizeKb);
       } catch (err) {
-        console.error('Image compression failed, using direct data url', err);
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target?.result) {
-            setImageUrl(event.target.result as string);
-          }
-        };
-        reader.readAsDataURL(file);
+        console.error('Image compression failed', err);
+        setErrorMsg('Failed to process image file.');
       } finally {
         setIsProcessingImage(false);
       }
@@ -86,9 +88,12 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !imageUrl) return;
+
+    setIsSavingToCloud(true);
+    setErrorMsg(null);
 
     const parsedTags = tagsInput
       .split(',')
@@ -110,14 +115,20 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
       price: forSale ? price : undefined
     };
 
-    onUpdateArtwork(updated);
-    onClose();
-
-    confetti({
-      particleCount: 30,
-      spread: 50,
-      colors: ['#6366f1', '#a855f7', '#ec4899']
-    });
+    try {
+      await onUpdateArtwork(updated);
+      confetti({
+        particleCount: 30,
+        spread: 50,
+        colors: ['#6366f1', '#a855f7', '#ec4899']
+      });
+      onClose();
+    } catch (err: unknown) {
+      console.error('Failed to update in cloud:', err);
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to update artwork in cloud.');
+    } finally {
+      setIsSavingToCloud(false);
+    }
   };
 
   return (
@@ -150,13 +161,25 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
           </button>
         </div>
 
+        {errorMsg && (
+          <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-5">
           
           {/* Image Replace / Upload Area */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
               <span>1. Artwork Image File</span>
-              <span className="text-[11px] font-normal text-indigo-300">Replace or update image</span>
+              {imageSizeKb && (
+                <span className="text-[11px] font-normal text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {imageSizeKb} KB (Cloud Optimized)
+                </span>
+              )}
             </label>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -193,7 +216,10 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
                 <input
                   type="url"
                   value={imageUrl.startsWith('data:') ? '' : imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
+                  onChange={(e) => {
+                    setImageUrl(e.target.value);
+                    setImageSizeKb(null);
+                  }}
                   placeholder="Or paste external image URL..."
                   className="w-full bg-black/30 text-xs text-white placeholder-slate-500 px-3.5 py-2 rounded-xl border border-white/15 focus:border-indigo-500 focus:outline-none backdrop-blur-md"
                 />
@@ -341,19 +367,29 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
             <button
               type="button"
+              disabled={isSavingToCloud}
               onClick={onClose}
-              className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all"
+              className="px-5 py-2.5 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-slate-300 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all"
             >
               Cancel
             </button>
 
             <button
               type="submit"
-              disabled={!title.trim() || !imageUrl || isProcessingImage}
+              disabled={!title.trim() || !imageUrl || isProcessingImage || isSavingToCloud}
               className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-900/40 border border-indigo-400/30 transition-all active:scale-95 flex items-center gap-2"
             >
-              <Edit3 className="w-4 h-4" />
-              <span>Save Changes</span>
+              {isSavingToCloud ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving to Cloud...</span>
+                </>
+              ) : (
+                <>
+                  <Edit3 className="w-4 h-4" />
+                  <span>Save Changes</span>
+                </>
+              )}
             </button>
           </div>
 

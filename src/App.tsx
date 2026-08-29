@@ -14,7 +14,7 @@ import { ContactQuestionModal } from './components/ContactQuestionModal';
 import { PrivateInboxView } from './components/PrivateInboxView';
 import { Shield } from 'lucide-react';
 import { 
-  clearLegacySampleArtworks,
+  getCachedArtworks,
   subscribeToArtworks,
   subscribeToAllComments,
   subscribeToInbox,
@@ -33,8 +33,8 @@ const STORAGE_KEY_LIKES = 'rishikhare_liked_v4';
 const STORAGE_KEY_OWNER = 'rishikhare_owner_mode';
 
 export default function App() {
-  // 1. Core Data State (synchronized with Firebase Firestore)
-  const [artworks, setArtworks] = useState<Artwork[]>([]);
+  // 1. Core Data State (synchronized with Firebase Firestore + instant initial cache)
+  const [artworks, setArtworks] = useState<Artwork[]>(() => getCachedArtworks());
   const [commentsMap, setCommentsMap] = useState<Record<string, Comment[]>>({});
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
@@ -83,10 +83,7 @@ export default function App() {
 
   // INITIALIZE FIREBASE & REAL-TIME LISTENERS
   useEffect(() => {
-    // 1. Purge legacy sample placeholder sketches from Firestore
-    clearLegacySampleArtworks();
-
-    // 2. Subscribe to Artworks in Real-Time
+    // 1. Subscribe to Artworks in Real-Time
     const unsubArtworks = subscribeToArtworks(
       (cloudArtworks) => {
         setArtworks(cloudArtworks);
@@ -103,12 +100,12 @@ export default function App() {
       }
     );
 
-    // 3. Subscribe to Comments in Real-Time
+    // 2. Subscribe to Comments in Real-Time
     const unsubComments = subscribeToAllComments((cloudCommentsMap) => {
       setCommentsMap(cloudCommentsMap);
     });
 
-    // 4. Subscribe to Private Inbox in Real-Time
+    // 3. Subscribe to Private Inbox in Real-Time
     const unsubInbox = subscribeToInbox((cloudMessages) => {
       setInboxMessages(cloudMessages);
     });
@@ -213,43 +210,33 @@ export default function App() {
     likeCommentInCloud(commentId);
   };
 
-  // Handle Add Artwork (Owner Action -> Cloud Database)
+  // Handle Add Artwork (Owner Action -> Direct Cloud Database Save)
   const handleAddArtwork = async (newArt: Artwork) => {
-    // Optimistic UI insertion
-    setArtworks(prev => [newArt, ...prev]);
-    try {
-      await addArtworkToCloud(newArt);
-    } catch (err) {
-      console.error('Failed to upload artwork to cloud:', err);
-    }
-    setShowUploadModal(false);
+    // 1. Await cloud save first to guarantee persistence
+    await addArtworkToCloud(newArt);
+    // 2. Immediately update local state
+    setArtworks(prev => {
+      if (prev.some(a => a.id === newArt.id)) return prev;
+      return [newArt, ...prev];
+    });
   };
 
-  // Handle Update Artwork (Owner Action -> Cloud Database)
+  // Handle Update Artwork (Owner Action -> Direct Cloud Database Save)
   const handleUpdateArtwork = async (updatedArt: Artwork) => {
+    await updateArtworkInCloud(updatedArt);
     setArtworks(prev => prev.map(art => art.id === updatedArt.id ? updatedArt : art));
     if (selectedArtwork?.id === updatedArt.id) {
       setSelectedArtwork(updatedArt);
     }
-    try {
-      await updateArtworkInCloud(updatedArt);
-    } catch (err) {
-      console.error('Failed to update artwork in cloud:', err);
-    }
-    setEditingArtwork(null);
   };
 
-  // Handle Delete Artwork (Owner Action -> Cloud Database)
+  // Handle Delete Artwork (Owner Action -> Direct Cloud Database Save)
   const handleDeleteArtwork = async (artworkId: string) => {
     setArtworks(prev => prev.filter(art => art.id !== artworkId));
     if (selectedArtwork?.id === artworkId) {
       setSelectedArtwork(null);
     }
-    try {
-      await deleteArtworkFromCloud(artworkId);
-    } catch (err) {
-      console.error('Failed to delete artwork from cloud:', err);
-    }
+    await deleteArtworkFromCloud(artworkId);
   };
 
   // Handle Send Question to Cloud Inbox

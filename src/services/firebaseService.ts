@@ -2,7 +2,6 @@ import {
   db, 
   collection, 
   doc, 
-  getDocs, 
   setDoc, 
   deleteDoc, 
   onSnapshot, 
@@ -13,24 +12,32 @@ import { Artwork, Comment, InboxMessage } from '../types';
 const ARTWORKS_COLLECTION = 'artworks';
 const COMMENTS_COLLECTION = 'comments';
 const INBOX_COLLECTION = 'inbox_messages';
+const CACHE_KEY_ARTWORKS = 'rishikhare_artworks_cache_v1';
 
 /**
- * Remove any legacy default/seeded artworks from Firestore if requested
+ * Helper to get cached artworks for instant rendering on reload
  */
-export async function clearLegacySampleArtworks(): Promise<void> {
-  const sampleIds = [
-    'art-madara-reality',
-    'art-goku-vegeta',
-    'art-madara-portrait',
-    'art-fresh-doodle'
-  ];
-
+export function getCachedArtworks(): Artwork[] {
   try {
-    for (const id of sampleIds) {
-      await deleteDoc(doc(db, ARTWORKS_COLLECTION, id));
+    const cached = localStorage.getItem(CACHE_KEY_ARTWORKS);
+    if (cached) {
+      return JSON.parse(cached);
     }
-  } catch (err) {
-    console.warn('Could not clear sample artworks:', err);
+  } catch (e) {
+    console.error('Failed to read artworks cache:', e);
+  }
+  return [];
+}
+
+/**
+ * Helper to save artworks to local cache
+ */
+function setCachedArtworks(artworks: Artwork[]) {
+  try {
+    localStorage.setItem(CACHE_KEY_ARTWORKS, JSON.stringify(artworks));
+  } catch (e) {
+    // If local storage is full due to large base64 images, ignore cache error
+    console.warn('Could not cache all artworks to localStorage:', e);
   }
 }
 
@@ -52,10 +59,16 @@ export function subscribeToArtworks(
       });
       // Sort by createdAt descending or featured
       list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setCachedArtworks(list);
       onUpdate(list);
     },
     (err) => {
-      console.warn('Firestore realtime error:', err);
+      console.warn('Firestore realtime artworks error:', err);
+      // Fallback to local cache if network error
+      const cached = getCachedArtworks();
+      if (cached.length > 0) {
+        onUpdate(cached);
+      }
       onError?.(err);
     }
   );
@@ -173,7 +186,7 @@ export async function incrementArtworkShareInCloud(artworkId: string): Promise<v
 }
 
 /**
- * Add a new artwork
+ * Add a new artwork directly to Firestore
  */
 export async function addArtworkToCloud(artwork: Artwork): Promise<void> {
   try {
@@ -189,7 +202,7 @@ export async function addArtworkToCloud(artwork: Artwork): Promise<void> {
 }
 
 /**
- * Update an existing artwork
+ * Update an existing artwork in Firestore
  */
 export async function updateArtworkInCloud(artwork: Artwork): Promise<void> {
   try {
@@ -218,50 +231,28 @@ export async function deleteArtworkFromCloud(artworkId: string): Promise<void> {
 }
 
 /**
- * Add a comment to cloud
+ * Add comment to cloud
  */
-export async function addCommentToCloud(
-  artworkId: string, 
-  comment: Comment
-): Promise<void> {
+export async function addCommentToCloud(artworkId: string, comment: Comment): Promise<void> {
   try {
-    // Add comment document
     const commentDocRef = doc(db, COMMENTS_COLLECTION, comment.id);
     await setDoc(commentDocRef, {
       ...comment,
-      artworkId
+      createdAt: Date.now()
     });
 
-    // Increment artwork commentsCount
+    // Increment comment count on the artwork document
     const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
     await setDoc(artDocRef, {
       commentsCount: increment(1)
     }, { merge: true });
-  } catch (err) {
-    console.warn('Error adding comment:', err);
+  } catch (e) {
+    console.error('Failed to add comment to Firestore:', e);
   }
 }
 
 /**
- * Delete comment
- */
-export async function deleteCommentFromCloud(
-  artworkId: string, 
-  commentId: string
-): Promise<void> {
-  try {
-    await deleteDoc(doc(db, COMMENTS_COLLECTION, commentId));
-    const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
-    await setDoc(artDocRef, {
-      commentsCount: increment(-1)
-    }, { merge: true });
-  } catch (err) {
-    console.warn('Could not decrement comment count', err);
-  }
-}
-
-/**
- * Like a comment
+ * Like comment
  */
 export async function likeCommentInCloud(commentId: string): Promise<void> {
   try {
@@ -269,45 +260,48 @@ export async function likeCommentInCloud(commentId: string): Promise<void> {
     await setDoc(commentDocRef, {
       likes: increment(1)
     }, { merge: true });
-  } catch (err) {
-    console.warn('Error liking comment:', err);
+  } catch (e) {
+    console.error('Failed to upvote comment in Firestore:', e);
   }
 }
 
 /**
- * Send inquiry / message to cloud inbox
+ * Send an inquiry message to private inbox
  */
-export async function sendInboxMessageToCloud(message: InboxMessage): Promise<void> {
+export async function sendInboxMessageToCloud(msg: InboxMessage): Promise<void> {
   try {
-    const inboxDocRef = doc(db, INBOX_COLLECTION, message.id);
-    await setDoc(inboxDocRef, message);
-  } catch (err) {
-    console.error('Error sending message:', err);
+    const msgDocRef = doc(db, INBOX_COLLECTION, msg.id);
+    await setDoc(msgDocRef, {
+      ...msg,
+      createdAt: Date.now()
+    });
+  } catch (e) {
+    console.error('Failed to send inbox message to Firestore:', e);
   }
 }
 
 /**
- * Mark inbox message read
+ * Mark inbox message as read
  */
-export async function markInboxMessageReadInCloud(messageId: string): Promise<void> {
+export async function markInboxMessageReadInCloud(msgId: string): Promise<void> {
   try {
-    const inboxDocRef = doc(db, INBOX_COLLECTION, messageId);
-    await setDoc(inboxDocRef, {
+    const msgDocRef = doc(db, INBOX_COLLECTION, msgId);
+    await setDoc(msgDocRef, {
       read: true
     }, { merge: true });
-  } catch (err) {
-    console.warn('Error marking read:', err);
+  } catch (e) {
+    console.error('Failed to mark message as read in Firestore:', e);
   }
 }
 
 /**
  * Delete inbox message
  */
-export async function deleteInboxMessageFromCloud(messageId: string): Promise<void> {
+export async function deleteInboxMessageFromCloud(msgId: string): Promise<void> {
   try {
-    const inboxDocRef = doc(db, INBOX_COLLECTION, messageId);
-    await deleteDoc(inboxDocRef);
-  } catch (err) {
-    console.warn('Error deleting inbox message:', err);
+    const msgDocRef = doc(db, INBOX_COLLECTION, msgId);
+    await deleteDoc(msgDocRef);
+  } catch (e) {
+    console.error('Failed to delete inbox message from Firestore:', e);
   }
 }
