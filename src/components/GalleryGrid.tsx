@@ -11,6 +11,7 @@ interface GalleryGridProps {
   likedArtworkIds: Set<string>;
   onResetFilters: () => void;
   onDeleteArtwork?: (artworkId: string) => void;
+  onEditArtwork?: (artwork: Artwork) => void;
   isOwnerMode?: boolean;
 }
 
@@ -22,6 +23,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
   likedArtworkIds,
   onResetFilters,
   onDeleteArtwork,
+  onEditArtwork,
   isOwnerMode
 }) => {
   const [layoutMode, setLayoutMode] = useState<'standard' | 'dense'>('standard');
@@ -100,6 +102,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
             onShareQuick={onShareQuick}
             hasLiked={likedArtworkIds.has(art.id)}
             onDeleteArtwork={onDeleteArtwork}
+            onEditArtwork={onEditArtwork}
             isOwnerMode={isOwnerMode}
           />
         ))}

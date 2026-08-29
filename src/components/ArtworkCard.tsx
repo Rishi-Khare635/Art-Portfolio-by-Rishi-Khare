@@ -6,7 +6,8 @@ import {
   Sparkles, 
   Check, 
   Copy,
-  Trash2
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import { Artwork } from '../types';
 import { CopyrightWatermark } from './CopyrightWatermark';
@@ -19,6 +20,7 @@ interface ArtworkCardProps {
   onShareQuick: (artwork: Artwork, e: React.MouseEvent) => void;
   hasLiked: boolean;
   onDeleteArtwork?: (artworkId: string) => void;
+  onEditArtwork?: (artwork: Artwork) => void;
   isOwnerMode?: boolean;
 }
 
@@ -29,6 +31,7 @@ export const ArtworkCard: React.FC<ArtworkCardProps> = ({
   onShareQuick,
   hasLiked,
   onDeleteArtwork,
+  onEditArtwork,
   isOwnerMode
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -105,6 +108,19 @@ export const ArtworkCard: React.FC<ArtworkCardProps> = ({
 
         {/* Floating Quick Action Buttons on Hover */}
         <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {isOwnerMode && onEditArtwork && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditArtwork(artwork);
+              }}
+              title="Edit Artwork (Owner)"
+              className="p-1.5 rounded-lg bg-indigo-600/90 hover:bg-indigo-600 text-white border border-indigo-400/30 backdrop-blur-md transition-all active:scale-95 shadow-md"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           {isOwnerMode && onDeleteArtwork && (
             <button
               onClick={(e) => {

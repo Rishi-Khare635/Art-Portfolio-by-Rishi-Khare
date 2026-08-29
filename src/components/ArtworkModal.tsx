@@ -21,7 +21,8 @@ import {
   Flame,
   User,
   Lock,
-  Trash2
+  Trash2,
+  Edit3
 } from 'lucide-react';
 import { Artwork, Comment, PlatformSource } from '../types';
 import { SOCIAL_PLATFORMS } from '../data/socialPlatforms';
@@ -40,6 +41,7 @@ interface ArtworkModalProps {
   currentReferralSource?: PlatformSource;
   onShareTracked: (source: PlatformSource, campaign?: string) => void;
   onDeleteArtwork?: (artworkId: string) => void;
+  onEditArtwork?: (artwork: Artwork) => void;
   isOwnerMode?: boolean;
 }
 
@@ -54,6 +56,7 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
   currentReferralSource,
   onShareTracked,
   onDeleteArtwork,
+  onEditArtwork,
   isOwnerMode
 }) => {
   const [commentName, setCommentName] = useState('');
@@ -372,45 +375,59 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
                 </div>
               </div>
 
-              {/* Owner Controls (Delete Artwork) */}
-              {isOwnerMode && onDeleteArtwork && (
-                <div className="p-3.5 rounded-2xl bg-red-950/20 border border-red-500/30 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-bold text-red-300 flex items-center gap-1.5">
-                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                      <span>Owner Controls</span>
+              {/* Owner Controls (Edit & Delete Artwork) */}
+              {isOwnerMode && (
+                <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/15 space-y-3 backdrop-blur-md">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                      <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Owner Management Controls</span>
                     </div>
-                    <p className="text-[11px] text-slate-400">
-                      Permanently remove this sketch from your portfolio.
-                    </p>
+                    <span className="text-[10px] font-mono text-slate-400">Rishi Khare • Studio</span>
                   </div>
 
-                  {confirmDelete ? (
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onEditArtwork && (
                       <button
-                        onClick={() => {
-                          onDeleteArtwork(artwork.id);
-                          onClose();
-                        }}
-                        className="px-3 py-1.5 text-xs font-bold bg-red-600 hover:bg-red-500 text-white rounded-xl transition-all shadow-md active:scale-95"
+                        onClick={() => onEditArtwork(artwork)}
+                        className="px-3.5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5"
                       >
-                        Confirm Delete
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit Image & Details</span>
                       </button>
-                      <button
-                        onClick={() => setConfirmDelete(false)}
-                        className="px-2.5 py-1.5 text-xs bg-white/10 hover:bg-white/15 text-slate-300 rounded-xl transition-all"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmDelete(true)}
-                      className="px-3 py-1.5 text-xs font-semibold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-xl transition-all active:scale-95 flex-shrink-0"
-                    >
-                      Delete Sketch
-                    </button>
-                  )}
+                    )}
+
+                    {onDeleteArtwork && (
+                      confirmDelete ? (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              onDeleteArtwork(artwork.id);
+                              onClose();
+                            }}
+                            className="px-3 py-2 text-xs font-bold bg-red-600 hover:bg-red-500 text-white rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Confirm Delete</span>
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(false)}
+                            className="px-2.5 py-2 text-xs bg-white/10 hover:bg-white/15 text-slate-300 rounded-xl transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(true)}
+                          className="px-3 py-2 text-xs font-semibold bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 rounded-xl transition-all active:scale-95 flex items-center gap-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
               )}
 

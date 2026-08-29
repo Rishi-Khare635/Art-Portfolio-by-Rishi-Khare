@@ -10,6 +10,7 @@ import { ArtistHero } from './components/ArtistHero';
 import { GalleryGrid } from './components/GalleryGrid';
 import { ArtworkModal } from './components/ArtworkModal';
 import { UploadArtworkModal } from './components/UploadArtworkModal';
+import { EditArtworkModal } from './components/EditArtworkModal';
 import { ContactQuestionModal } from './components/ContactQuestionModal';
 import { PrivateInboxView } from './components/PrivateInboxView';
 import { Shield, Lock } from 'lucide-react';
@@ -90,6 +91,7 @@ export default function App() {
 
   // 5. Modals State
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [editingArtwork, setEditingArtwork] = useState<Artwork | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showCopyrightAlert, setShowCopyrightAlert] = useState(false);
 
@@ -248,6 +250,14 @@ export default function App() {
     setShowUploadModal(false);
   };
 
+  const handleUpdateArtwork = (updatedArt: Artwork) => {
+    setArtworks(prev => prev.map(art => art.id === updatedArt.id ? updatedArt : art));
+    if (selectedArtwork?.id === updatedArt.id) {
+      setSelectedArtwork(updatedArt);
+    }
+    setEditingArtwork(null);
+  };
+
   const handleDeleteArtwork = (artworkId: string) => {
     setArtworks(prev => prev.filter(art => art.id !== artworkId));
     if (selectedArtwork?.id === artworkId) {
@@ -307,6 +317,7 @@ export default function App() {
               likedArtworkIds={likedArtworkIds}
               onResetFilters={() => setSearchQuery('')}
               onDeleteArtwork={handleDeleteArtwork}
+              onEditArtwork={(art) => setEditingArtwork(art)}
               isOwnerMode={isOwnerMode}
             />
           </div>
@@ -363,7 +374,16 @@ export default function App() {
           currentReferralSource={'direct'}
           onShareTracked={() => {}}
           onDeleteArtwork={handleDeleteArtwork}
+          onEditArtwork={(art) => setEditingArtwork(art)}
           isOwnerMode={isOwnerMode}
+        />
+      )}
+
+      {editingArtwork && (
+        <EditArtworkModal
+          artwork={editingArtwork}
+          onClose={() => setEditingArtwork(null)}
+          onUpdateArtwork={handleUpdateArtwork}
         />
       )}
 
