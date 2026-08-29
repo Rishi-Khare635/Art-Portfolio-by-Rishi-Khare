@@ -15,6 +15,29 @@ const INBOX_COLLECTION = 'inbox_messages';
 const CACHE_KEY_ARTWORKS = 'rishikhare_artworks_cache_v1';
 
 /**
+ * Strips undefined properties recursively so Firestore setDoc never throws an invalid data error
+ */
+function sanitizeForFirestore<T>(data: T): Record<string, any> {
+  const clean = (obj: any): any => {
+    if (obj === null || obj === undefined) return null;
+    if (Array.isArray(obj)) {
+      return obj.map(clean).filter((v) => v !== undefined);
+    }
+    if (typeof obj === 'object') {
+      const res: Record<string, any> = {};
+      for (const [key, val] of Object.entries(obj)) {
+        if (val !== undefined) {
+          res[key] = clean(val);
+        }
+      }
+      return res;
+    }
+    return obj;
+  };
+  return clean(data) || {};
+}
+
+/**
  * Helper to get cached artworks for instant rendering on reload
  */
 export function getCachedArtworks(): Artwork[] {
@@ -191,10 +214,11 @@ export async function incrementArtworkShareInCloud(artworkId: string): Promise<v
 export async function addArtworkToCloud(artwork: Artwork): Promise<void> {
   try {
     const artDocRef = doc(db, ARTWORKS_COLLECTION, artwork.id);
-    await setDoc(artDocRef, {
+    const sanitized = sanitizeForFirestore({
       ...artwork,
       updatedAt: Date.now()
     });
+    await setDoc(artDocRef, sanitized);
   } catch (err) {
     console.error('Error adding artwork to Firestore:', err);
     throw err;
@@ -207,10 +231,11 @@ export async function addArtworkToCloud(artwork: Artwork): Promise<void> {
 export async function updateArtworkInCloud(artwork: Artwork): Promise<void> {
   try {
     const artDocRef = doc(db, ARTWORKS_COLLECTION, artwork.id);
-    await setDoc(artDocRef, {
+    const sanitized = sanitizeForFirestore({
       ...artwork,
       updatedAt: Date.now()
-    }, { merge: true });
+    });
+    await setDoc(artDocRef, sanitized, { merge: true });
   } catch (err) {
     console.error('Error updating artwork in Firestore:', err);
     throw err;
@@ -236,10 +261,11 @@ export async function deleteArtworkFromCloud(artworkId: string): Promise<void> {
 export async function addCommentToCloud(artworkId: string, comment: Comment): Promise<void> {
   try {
     const commentDocRef = doc(db, COMMENTS_COLLECTION, comment.id);
-    await setDoc(commentDocRef, {
+    const sanitized = sanitizeForFirestore({
       ...comment,
       createdAt: Date.now()
     });
+    await setDoc(commentDocRef, sanitized);
 
     // Increment comment count on the artwork document
     const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
@@ -271,10 +297,11 @@ export async function likeCommentInCloud(commentId: string): Promise<void> {
 export async function sendInboxMessageToCloud(msg: InboxMessage): Promise<void> {
   try {
     const msgDocRef = doc(db, INBOX_COLLECTION, msg.id);
-    await setDoc(msgDocRef, {
+    const sanitized = sanitizeForFirestore({
       ...msg,
       createdAt: Date.now()
     });
+    await setDoc(msgDocRef, sanitized);
   } catch (e) {
     console.error('Failed to send inbox message to Firestore:', e);
   }

@@ -111,8 +111,8 @@ export const EditArtworkModal: React.FC<EditArtworkModalProps> = ({
       year: Number(year) || new Date().getFullYear(),
       tags: parsedTags.length > 0 ? parsedTags : ['OriginalArt'],
       featured,
-      forSale,
-      price: forSale ? price : undefined
+      forSale: Boolean(forSale),
+      ...(forSale && price?.trim() ? { price: price.trim() } : {})
     };
 
     try {

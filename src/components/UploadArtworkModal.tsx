@@ -115,8 +115,8 @@ export const UploadArtworkModal: React.FC<UploadArtworkModalProps> = ({
       commentsCount: 0,
       createdAt: Date.now(),
       aspectRatio: 'portrait',
-      forSale,
-      price: forSale ? price : undefined
+      forSale: Boolean(forSale),
+      ...(forSale && price.trim() ? { price: price.trim() } : {})
     };
 
     try {
