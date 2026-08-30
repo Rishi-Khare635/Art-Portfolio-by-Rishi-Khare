@@ -274,11 +274,30 @@ export async function addCommentToCloud(artworkId: string, comment: Comment): Pr
     }, { merge: true });
   } catch (e) {
     console.error('Failed to add comment to Firestore:', e);
+    throw e;
   }
 }
 
 /**
- * Like comment
+ * Delete comment from cloud
+ */
+export async function deleteCommentFromCloud(artworkId: string, commentId: string): Promise<void> {
+  try {
+    const commentDocRef = doc(db, COMMENTS_COLLECTION, commentId);
+    await deleteDoc(commentDocRef);
+
+    // Decrement comment count on the artwork document
+    const artDocRef = doc(db, ARTWORKS_COLLECTION, artworkId);
+    await setDoc(artDocRef, {
+      commentsCount: increment(-1)
+    }, { merge: true });
+  } catch (e) {
+    console.error('Failed to delete comment from Firestore:', e);
+  }
+}
+
+/**
+ * Like / upvote comment
  */
 export async function likeCommentInCloud(commentId: string): Promise<void> {
   try {

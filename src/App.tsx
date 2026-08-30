@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Artwork, 
-  Comment, 
-  InboxMessage
+  Comment 
 } from './types';
 import { Header } from './components/Header';
 import { ArtistHero } from './components/ArtistHero';
@@ -10,36 +9,30 @@ import { GalleryGrid } from './components/GalleryGrid';
 import { ArtworkModal } from './components/ArtworkModal';
 import { UploadArtworkModal } from './components/UploadArtworkModal';
 import { EditArtworkModal } from './components/EditArtworkModal';
-import { ContactQuestionModal } from './components/ContactQuestionModal';
-import { PrivateInboxView } from './components/PrivateInboxView';
 import { Shield } from 'lucide-react';
 import { 
   getCachedArtworks,
   subscribeToArtworks,
   subscribeToAllComments,
-  subscribeToInbox,
   toggleArtworkLikeInCloud,
   addArtworkToCloud,
   updateArtworkInCloud,
   deleteArtworkFromCloud,
   addCommentToCloud,
   likeCommentInCloud,
-  sendInboxMessageToCloud,
-  markInboxMessageReadInCloud,
-  deleteInboxMessageFromCloud
+  deleteCommentFromCloud
 } from './services/firebaseService';
 
-const STORAGE_KEY_LIKES = 'rishikhare_liked_v4';
+const STORAGE_KEY_LIKES = 'rishikhare_liked_v5';
 const STORAGE_KEY_OWNER = 'rishikhare_owner_mode';
 
 export default function App() {
   // 1. Core Data State (synchronized with Firebase Firestore + instant initial cache)
   const [artworks, setArtworks] = useState<Artwork[]>(() => getCachedArtworks());
   const [commentsMap, setCommentsMap] = useState<Record<string, Comment[]>>({});
-  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
 
-  // 2. Personal liked status (kept in local visitor storage)
+  // 2. Personal liked status (stored locally for visitor)
   const [likedArtworkIds, setLikedArtworkIds] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_LIKES);
@@ -50,26 +43,25 @@ export default function App() {
     return new Set<string>();
   });
 
-  // 3. Owner / Artist Privacy State
+  // 3. Owner / Artist Mode Toggle
   const [isOwnerMode, setIsOwnerMode] = useState<boolean>(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('owner') === 'true' || urlParams.get('admin') === 'true') return true;
-      return localStorage.getItem(STORAGE_KEY_OWNER) === 'true';
+      const stored = localStorage.getItem(STORAGE_KEY_OWNER);
+      return stored !== null ? stored === 'true' : true; // Default to true so user can easily manage artworks
     } catch {
-      return true; // Default to owner enabled so the user can easily upload immediately
+      return true;
     }
   });
 
-  // 4. Navigation & View State
-  const [currentView, setCurrentView] = useState<'gallery' | 'inbox'>('gallery');
+  // 4. State for active artwork & search
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // 5. Modals State
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [editingArtwork, setEditingArtwork] = useState<Artwork | null>(null);
-  const [showContactModal, setShowContactModal] = useState(false);
   const [showCopyrightAlert, setShowCopyrightAlert] = useState(false);
 
   // Save owner mode preference
@@ -88,7 +80,7 @@ export default function App() {
       (cloudArtworks) => {
         setArtworks(cloudArtworks);
         setIsCloudConnected(true);
-        // Keep active selected artwork updated if open
+        // Keep active selected artwork in sync
         setSelectedArtwork(curr => {
           if (!curr) return null;
           const matched = cloudArtworks.find(a => a.id === curr.id);
@@ -100,20 +92,14 @@ export default function App() {
       }
     );
 
-    // 2. Subscribe to Comments in Real-Time
+    // 2. Subscribe to All Comments in Real-Time
     const unsubComments = subscribeToAllComments((cloudCommentsMap) => {
       setCommentsMap(cloudCommentsMap);
-    });
-
-    // 3. Subscribe to Private Inbox in Real-Time
-    const unsubInbox = subscribeToInbox((cloudMessages) => {
-      setInboxMessages(cloudMessages);
     });
 
     return () => {
       unsubArtworks();
       unsubComments();
-      unsubInbox();
     };
   }, []);
 
@@ -133,7 +119,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Filter artworks strictly by search query
+  // Filter artworks by search query
   const filteredArtworks = useMemo(() => {
     return artworks.filter(art => {
       if (!searchQuery.trim()) return true;
@@ -141,7 +127,8 @@ export default function App() {
       return (
         art.title.toLowerCase().includes(q) ||
         art.description.toLowerCase().includes(q) ||
-        art.tags.some(t => t.toLowerCase().includes(q))
+        art.medium.toLowerCase().includes(q) ||
+        (art.tags && art.tags.some(t => t.toLowerCase().includes(q)))
       );
     });
   }, [artworks, searchQuery]);
@@ -172,56 +159,106 @@ export default function App() {
         if (item.id === artworkId) {
           return {
             ...item,
-            likesCount: isCurrentlyLiked ? Math.max(0, item.likesCount - 1) : item.likesCount + 1
+            likesCount: isCurrentlyLiked ? Math.max(0, (item.likesCount || 1) - 1) : (item.likesCount || 0) + 1
           };
         }
         return item;
       })
     );
 
-    // Sync directly with Cloud Database
+    // Sync to Cloud Database
     toggleArtworkLikeInCloud(artworkId, !isCurrentlyLiked);
   };
 
   // Handle Add Comment (Direct to Cloud Firestore)
-  const handleAddComment = (artworkId: string, authorName: string, content: string, isArtist?: boolean) => {
+  const handleAddComment = async (
+    artworkId: string, 
+    authorName: string, 
+    content: string, 
+    isArtist?: boolean
+  ) => {
     const newComment: Comment = {
-      id: 'cmt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      id: 'cmt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6),
       artworkId,
-      authorName: authorName.trim() || 'Fellow Artist',
+      authorName: authorName.trim() || (isArtist ? 'Rishi Khare (Artist)' : 'Visitor'),
+      authorHandle: isArtist ? '@artist' : '@visitor',
       content: content.trim(),
       timestamp: Date.now(),
       likes: 0,
       isArtist: Boolean(isArtist)
     };
 
-    // Optimistic UI update
+    // Optimistic UI update for comments
     setCommentsMap(prev => ({
       ...prev,
       [artworkId]: [newComment, ...(prev[artworkId] || [])]
     }));
 
+    // Optimistic update for artwork comment count
+    setArtworks(artList =>
+      artList.map(item => {
+        if (item.id === artworkId) {
+          return {
+            ...item,
+            commentsCount: (item.commentsCount || 0) + 1
+          };
+        }
+        return item;
+      })
+    );
+
     // Send to Cloud Database
-    addCommentToCloud(artworkId, newComment);
+    await addCommentToCloud(artworkId, newComment);
   };
 
   // Handle Comment Upvote (Synced to Cloud)
-  const handleLikeComment = (_artworkId: string, commentId: string) => {
+  const handleLikeComment = (commentId: string) => {
+    // Optimistic update
+    setCommentsMap(prev => {
+      const nextMap = { ...prev };
+      for (const artId in nextMap) {
+        nextMap[artId] = nextMap[artId].map(c => 
+          c.id === commentId ? { ...c, likes: (c.likes || 0) + 1 } : c
+        );
+      }
+      return nextMap;
+    });
+
     likeCommentInCloud(commentId);
   };
 
-  // Handle Add Artwork (Owner Action -> Direct Cloud Database Save)
+  // Handle Delete Comment (Owner Action)
+  const handleDeleteComment = async (artworkId: string, commentId: string) => {
+    setCommentsMap(prev => ({
+      ...prev,
+      [artworkId]: (prev[artworkId] || []).filter(c => c.id !== commentId)
+    }));
+
+    setArtworks(artList =>
+      artList.map(item => {
+        if (item.id === artworkId) {
+          return {
+            ...item,
+            commentsCount: Math.max(0, (item.commentsCount || 1) - 1)
+          };
+        }
+        return item;
+      })
+    );
+
+    await deleteCommentFromCloud(artworkId, commentId);
+  };
+
+  // Handle Add Artwork (Owner Action)
   const handleAddArtwork = async (newArt: Artwork) => {
-    // 1. Await cloud save first to guarantee persistence
     await addArtworkToCloud(newArt);
-    // 2. Immediately update local state
     setArtworks(prev => {
       if (prev.some(a => a.id === newArt.id)) return prev;
       return [newArt, ...prev];
     });
   };
 
-  // Handle Update Artwork (Owner Action -> Direct Cloud Database Save)
+  // Handle Update Artwork (Owner Action)
   const handleUpdateArtwork = async (updatedArt: Artwork) => {
     await updateArtworkInCloud(updatedArt);
     setArtworks(prev => prev.map(art => art.id === updatedArt.id ? updatedArt : art));
@@ -230,7 +267,7 @@ export default function App() {
     }
   };
 
-  // Handle Delete Artwork (Owner Action -> Direct Cloud Database Save)
+  // Handle Delete Artwork (Owner Action)
   const handleDeleteArtwork = async (artworkId: string) => {
     setArtworks(prev => prev.filter(art => art.id !== artworkId));
     if (selectedArtwork?.id === artworkId) {
@@ -239,28 +276,6 @@ export default function App() {
     await deleteArtworkFromCloud(artworkId);
   };
 
-  // Handle Send Question to Cloud Inbox
-  const handleSendMessage = (msgData: Omit<InboxMessage, 'id' | 'timestamp' | 'read'>) => {
-    const newMsg: InboxMessage = {
-      id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-      timestamp: Date.now(),
-      read: false,
-      ...msgData
-    };
-    sendInboxMessageToCloud(newMsg);
-  };
-
-  // Handle Delete Inbox Message
-  const handleDeleteMessage = (id: string) => {
-    deleteInboxMessageFromCloud(id);
-  };
-
-  // Handle Toggle Read Status
-  const handleToggleRead = (id: string) => {
-    markInboxMessageReadInCloud(id);
-  };
-
-  const unreadMessagesCount = inboxMessages.filter(m => !m.read).length;
   const totalLikesCount = artworks.reduce((acc, a) => acc + (a.likesCount || 0), 0);
 
   return (
@@ -268,56 +283,35 @@ export default function App() {
       
       {/* Navigation Header */}
       <Header
-        currentView={currentView}
-        setCurrentView={setCurrentView}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         onOpenUpload={() => setShowUploadModal(true)}
-        onOpenContact={() => setShowContactModal(true)}
-        unreadCount={unreadMessagesCount}
         isOwnerMode={isOwnerMode}
         setIsOwnerMode={setIsOwnerMode}
       />
 
-      {/* MAIN CONTENT AREA */}
+      {/* Main Content */}
       <main className="flex-1">
-        {currentView === 'inbox' && isOwnerMode ? (
-          /* Private Owner Inbox */
-          <PrivateInboxView
-            messages={inboxMessages}
-            onDeleteMessage={handleDeleteMessage}
-            onToggleRead={handleToggleRead}
-            onBackToGallery={() => setCurrentView('gallery')}
-            onOpenUpload={() => setShowUploadModal(true)}
-          />
-        ) : (
-          <div>
-            {/* Minimal Artist Hero Banner */}
-            <ArtistHero
-              artworksCount={artworks.length}
-              totalLikes={totalLikesCount}
-              onOpenQuestionModal={() => setShowContactModal(true)}
-              onOpenUpload={() => setShowUploadModal(true)}
-              onOpenInbox={() => setCurrentView('inbox')}
-              unreadCount={unreadMessagesCount}
-              isOwnerMode={isOwnerMode}
-            />
+        {/* Minimal Artist Hero Banner */}
+        <ArtistHero
+          artworksCount={artworks.length}
+          totalLikes={totalLikesCount}
+          onOpenUpload={() => setShowUploadModal(true)}
+          isOwnerMode={isOwnerMode}
+        />
 
-            {/* Gallery Grid */}
-            <GalleryGrid
-              artworks={filteredArtworks}
-              onSelectArtwork={(art) => setSelectedArtwork(art)}
-              onLikeArtwork={handleLikeArtwork}
-              onShareQuick={() => setShowContactModal(true)}
-              likedArtworkIds={likedArtworkIds}
-              onResetFilters={() => setSearchQuery('')}
-              onDeleteArtwork={handleDeleteArtwork}
-              onEditArtwork={(art) => setEditingArtwork(art)}
-              onOpenUpload={() => setShowUploadModal(true)}
-              isOwnerMode={isOwnerMode}
-            />
-          </div>
-        )}
+        {/* Gallery Grid with Like and Comment Buttons */}
+        <GalleryGrid
+          artworks={filteredArtworks}
+          onSelectArtwork={(art) => setSelectedArtwork(art)}
+          onLikeArtwork={handleLikeArtwork}
+          likedArtworkIds={likedArtworkIds}
+          onResetFilters={() => setSearchQuery('')}
+          onDeleteArtwork={handleDeleteArtwork}
+          onEditArtwork={(art) => setEditingArtwork(art)}
+          onOpenUpload={() => setShowUploadModal(true)}
+          isOwnerMode={isOwnerMode}
+        />
       </main>
 
       {/* Minimal Footer */}
@@ -325,34 +319,15 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-200 font-display">Rishi Khare</span>
-            <span>• Anime Sketches & Line Art</span>
+            <span>• Original Sketches & Anime Art</span>
             {isCloudConnected && (
               <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Cloud Synced
+                Firestore Live
               </span>
             )}
           </div>
           <div className="flex items-center gap-4 text-xs">
-            <button 
-              onClick={() => setShowContactModal(true)} 
-              className="hover:text-slate-200 transition-colors"
-            >
-              Ask a Question
-            </button>
-            {isOwnerMode && (
-              <button 
-                onClick={() => setCurrentView(currentView === 'inbox' ? 'gallery' : 'inbox')} 
-                className="hover:text-slate-200 transition-colors flex items-center gap-1"
-              >
-                <span>Private Inbox</span>
-                {unreadMessagesCount > 0 && (
-                  <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-pink-500 text-white">
-                    {unreadMessagesCount}
-                  </span>
-                )}
-              </button>
-            )}
             <button 
               onClick={() => setIsOwnerMode(!isOwnerMode)} 
               className="hover:text-indigo-300 transition-colors"
@@ -373,8 +348,7 @@ export default function App() {
           comments={commentsMap[selectedArtwork.id] || []}
           onAddComment={handleAddComment}
           onLikeComment={handleLikeComment}
-          currentReferralSource={'direct'}
-          onShareTracked={() => {}}
+          onDeleteComment={handleDeleteComment}
           onDeleteArtwork={handleDeleteArtwork}
           onEditArtwork={(art) => setEditingArtwork(art)}
           isOwnerMode={isOwnerMode}
@@ -396,14 +370,7 @@ export default function App() {
         />
       )}
 
-      {showContactModal && (
-        <ContactQuestionModal
-          onClose={() => setShowContactModal(false)}
-          onSendMessage={handleSendMessage}
-        />
-      )}
-
-      {/* Floating Copyright & Anti-Theft Toast */}
+      {/* Floating Anti-Theft / Copyright Toast */}
       {showCopyrightAlert && (
         <div 
           role="alert" 

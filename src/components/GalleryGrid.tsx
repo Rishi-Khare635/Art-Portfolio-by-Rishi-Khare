@@ -7,7 +7,6 @@ interface GalleryGridProps {
   artworks: Artwork[];
   onSelectArtwork: (artwork: Artwork) => void;
   onLikeArtwork: (artworkId: string, e: React.MouseEvent) => void;
-  onShareQuick: (artwork: Artwork, e: React.MouseEvent) => void;
   likedArtworkIds: Set<string>;
   onResetFilters: () => void;
   onDeleteArtwork?: (artworkId: string) => void;
@@ -20,9 +19,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
   artworks,
   onSelectArtwork,
   onLikeArtwork,
-  onShareQuick,
   likedArtworkIds,
-  onResetFilters,
   onDeleteArtwork,
   onEditArtwork,
   onOpenUpload,
@@ -38,7 +35,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
         </div>
         <h3 className="text-xl font-bold text-white mb-2 font-display">Gallery is Ready for Your Art</h3>
         <p className="text-sm text-slate-300 mb-6 leading-relaxed">
-          The default sample pieces have been cleared. You can now upload your own original drawings, manga studies, and sketches.
+          No artworks found matching your search. Upload your original sketches, manga line art, and illustrations.
         </p>
         
         {isOwnerMode && onOpenUpload && (
@@ -47,7 +44,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-2xl shadow-xl shadow-indigo-900/50 border border-indigo-400/40 transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>Upload Your First Artwork</span>
+            <span>Upload Artwork</span>
           </button>
         )}
       </div>
@@ -56,13 +53,13 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Top Bar showing item count & density */}
+      {/* Top Bar */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-200 font-display">
-            Portfolio Exhibition ({artworks.length} {artworks.length === 1 ? 'Piece' : 'Pieces'})
+            Portfolio Gallery ({artworks.length} {artworks.length === 1 ? 'Piece' : 'Pieces'})
           </h2>
-          <span className="text-xs text-slate-400 hidden sm:inline">• Click artwork for high-res study & community comments</span>
+          <span className="text-xs text-slate-400 hidden sm:inline">• Click any artwork to view details and join discussion</span>
         </div>
 
         <div className="hidden sm:flex items-center gap-1 bg-white/5 backdrop-blur-md p-1 rounded-xl border border-white/10">
@@ -84,7 +81,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                 ? 'bg-indigo-600 text-white font-medium shadow-sm'
                 : 'text-slate-400 hover:text-white'
             }`}
-            title="Dense Multi-Column Grid"
+            title="Dense Grid"
           >
             <LayoutGrid className="w-4 h-4" />
           </button>
@@ -105,7 +102,6 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
             artwork={art}
             onSelect={onSelectArtwork}
             onLike={onLikeArtwork}
-            onShareQuick={onShareQuick}
             hasLiked={likedArtworkIds.has(art.id)}
             onDeleteArtwork={onDeleteArtwork}
             onEditArtwork={onEditArtwork}

@@ -1,6 +1,6 @@
 {
   "name": "Rishi Khare - Personal Art Portfolio",
-  "description": "Personal sketch and anime art portfolio by Rishi Khare featuring clean gallery view and private question inbox.",
+  "description": "Personal sketch and anime art portfolio by Rishi Khare featuring clean gallery view, interactive likes, and detailed artwork studies.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
