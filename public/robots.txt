@@ -1,0 +1,74 @@
+# robots.txt for Rishi Khare Portfolio
+# Prohibits automated AI scraping, dataset harvesting, and model training
+
+# Common Crawl (Major source for LLM & Diffusion training datasets like LAION)
+User-agent: CCBot
+Disallow: /
+
+# OpenAI AI scrapers & training bots
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+# Google AI training crawler
+User-agent: Google-Extended
+Disallow: /
+
+# Anthropic Claude training crawlers
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+# Meta / Facebook AI crawlers
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+# Apple Intelligence training crawler
+User-agent: Applebot-Extended
+Disallow: /
+
+# ByteDance / TikTok AI crawler
+User-agent: Bytespider
+Disallow: /
+
+# Cohere AI crawler
+User-agent: cohere-ai
+Disallow: /
+
+# Perplexity AI crawler
+User-agent: PerplexityBot
+Disallow: /
+
+# Image and data scraping bots
+User-agent: Diffbot
+Disallow: /
+
+User-agent: ImagesiftBot
+Disallow: /
+
+User-agent: Omgilibot
+Disallow: /
+
+User-agent: Meltwater
+Disallow: /
+
+# Global crawler directives
+User-agent: *
+Disallow: /api/
+Disallow: /owner
+Disallow: /*.jpg$
+Disallow: /*.jpeg$
+Disallow: /*.png$
+Disallow: /*.webp$
+Disallow: /*.gif$
+Allow: /

@@ -48,18 +48,21 @@ export async function compressImageFile(
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Embed 'rishi' watermark directly onto new uploaded image canvas
+          // Embed bold 'rishi' watermark directly onto new uploaded image canvas
           ctx.save();
-          const fontSize = Math.max(16, Math.round(width * 0.035));
-          ctx.font = `bold ${fontSize}px monospace, sans-serif`;
+          const fontSize = Math.max(20, Math.round(width * 0.045));
+          ctx.font = `900 ${fontSize}px monospace, system-ui, sans-serif`;
           ctx.textAlign = 'right';
           ctx.textBaseline = 'bottom';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-          ctx.shadowBlur = 6;
-          ctx.shadowOffsetX = 2;
-          ctx.shadowOffsetY = 2;
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-          ctx.fillText('rishi', width - (fontSize * 0.7), height - (fontSize * 0.7));
+          
+          // Outer black stroke for high contrast on light artworks
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+          ctx.lineWidth = Math.max(3, fontSize * 0.15);
+          ctx.strokeText('© rishi', width - (fontSize * 0.6), height - (fontSize * 0.6));
+
+          // Inner solid crisp fill
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.fillText('© rishi', width - (fontSize * 0.6), height - (fontSize * 0.6));
           ctx.restore();
 
           // Try webp first for supreme compression, fallback to jpeg
