@@ -10,6 +10,7 @@ import { ArtworkModal } from './components/ArtworkModal';
 import { UploadArtworkModal } from './components/UploadArtworkModal';
 import { EditArtworkModal } from './components/EditArtworkModal';
 import { OwnerLoginModal } from './components/OwnerLoginModal';
+import { AntiScreenshotShield } from './components/AntiScreenshotShield';
 import { Shield, ShieldCheck, Lock } from 'lucide-react';
 import { 
   getCachedArtworks,
@@ -384,6 +385,9 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Full Screen Anti-Screenshot Blackout Shield & Attempt Tracker */}
+      <AntiScreenshotShield />
 
       {/* MODALS */}
       {selectedArtwork && (

@@ -68,24 +68,35 @@
   user-select: none;
 }
 
-/* Print Protection: Stamping bold copyright on any print attempt */
+/* Print & Screen Capture Protection: Instant solid blackout on any print / screen-save attempt */
 @media print {
+  html, body {
+    background: #000000 !important;
+    color: #ffffff !important;
+    background-color: #000000 !important;
+  }
   body * {
-    visibility: hidden;
+    display: none !important;
+    visibility: hidden !important;
   }
   body::before {
-    content: "© Rishi Khare • All Rights Reserved • Original Protected Artwork. Reproduction is prohibited by law.";
-    visibility: visible;
+    content: "⚠️ PROTECTED ARTWORK • © RISHI KHARE\a Screen capture, printing, and unauthorized duplication are strictly prohibited by law.";
+    white-space: pre-wrap;
+    display: block !important;
+    visibility: visible !important;
     position: fixed;
-    top: 40%;
+    top: 35%;
     left: 10%;
     right: 10%;
-    font-size: 24px;
-    font-weight: bold;
+    font-size: 26px;
+    font-weight: 900;
     text-align: center;
-    color: #000;
-    border: 3px solid #000;
-    padding: 20px;
+    color: #ffffff !important;
+    background: #000000 !important;
+    border: 4px solid #ef4444 !important;
+    padding: 36px;
+    border-radius: 20px;
+    font-family: monospace, sans-serif;
   }
 }
 
