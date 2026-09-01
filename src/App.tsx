@@ -9,7 +9,8 @@ import { GalleryGrid } from './components/GalleryGrid';
 import { ArtworkModal } from './components/ArtworkModal';
 import { UploadArtworkModal } from './components/UploadArtworkModal';
 import { EditArtworkModal } from './components/EditArtworkModal';
-import { Shield } from 'lucide-react';
+import { OwnerLoginModal } from './components/OwnerLoginModal';
+import { Shield, ShieldCheck, Lock } from 'lucide-react';
 import { 
   getCachedArtworks,
   subscribeToArtworks,
@@ -20,11 +21,14 @@ import {
   deleteArtworkFromCloud,
   addCommentToCloud,
   likeCommentInCloud,
-  deleteCommentFromCloud
+  deleteCommentFromCloud,
+  subscribeToAuth,
+  signOutOwner,
+  OWNER_EMAIL
 } from './services/firebaseService';
 
 const STORAGE_KEY_LIKES = 'rishikhare_liked_v5';
-const STORAGE_KEY_OWNER = 'rishikhare_owner_mode';
+const SESSION_KEY_OWNER_AUTH = 'rishikhare_verified_owner_session';
 
 export default function App() {
   // 1. Core Data State (synchronized with Firebase Firestore + instant initial cache)
@@ -43,35 +47,39 @@ export default function App() {
     return new Set<string>();
   });
 
-  // 3. Owner / Artist Mode Toggle
+  // 3. Strict Owner Mode (Defaults to FALSE for all visitors)
   const [isOwnerMode, setIsOwnerMode] = useState<boolean>(() => {
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('owner') === 'true' || urlParams.get('admin') === 'true') return true;
-      const stored = localStorage.getItem(STORAGE_KEY_OWNER);
-      return stored !== null ? stored === 'true' : true; // Default to true so user can easily manage artworks
+      const sessionAuth = sessionStorage.getItem(SESSION_KEY_OWNER_AUTH);
+      return sessionAuth === 'verified';
     } catch {
-      return true;
+      return false;
     }
   });
 
-  // 4. State for active artwork & search
+  // 4. Modals and Active Artwork
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // 5. Modals State
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [editingArtwork, setEditingArtwork] = useState<Artwork | null>(null);
+  const [showOwnerLoginModal, setShowOwnerLoginModal] = useState(false);
   const [showCopyrightAlert, setShowCopyrightAlert] = useState(false);
 
-  // Save owner mode preference
+  // Sync Firebase Auth status for auto owner recognition
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_OWNER, String(isOwnerMode));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [isOwnerMode]);
+    const unsubAuth = subscribeToAuth((user, isOwner) => {
+      if (user && isOwner) {
+        setIsOwnerMode(true);
+        try {
+          sessionStorage.setItem(SESSION_KEY_OWNER_AUTH, 'verified');
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    });
+
+    return () => unsubAuth();
+  }, []);
 
   // INITIALIZE FIREBASE & REAL-TIME LISTENERS
   useEffect(() => {
@@ -213,7 +221,6 @@ export default function App() {
 
   // Handle Comment Upvote (Synced to Cloud)
   const handleLikeComment = (commentId: string) => {
-    // Optimistic update
     setCommentsMap(prev => {
       const nextMap = { ...prev };
       for (const artId in nextMap) {
@@ -229,6 +236,8 @@ export default function App() {
 
   // Handle Delete Comment (Owner Action)
   const handleDeleteComment = async (artworkId: string, commentId: string) => {
+    if (!isOwnerMode) return;
+
     setCommentsMap(prev => ({
       ...prev,
       [artworkId]: (prev[artworkId] || []).filter(c => c.id !== commentId)
@@ -251,6 +260,7 @@ export default function App() {
 
   // Handle Add Artwork (Owner Action)
   const handleAddArtwork = async (newArt: Artwork) => {
+    if (!isOwnerMode) return;
     await addArtworkToCloud(newArt);
     setArtworks(prev => {
       if (prev.some(a => a.id === newArt.id)) return prev;
@@ -260,6 +270,7 @@ export default function App() {
 
   // Handle Update Artwork (Owner Action)
   const handleUpdateArtwork = async (updatedArt: Artwork) => {
+    if (!isOwnerMode) return;
     await updateArtworkInCloud(updatedArt);
     setArtworks(prev => prev.map(art => art.id === updatedArt.id ? updatedArt : art));
     if (selectedArtwork?.id === updatedArt.id) {
@@ -269,11 +280,32 @@ export default function App() {
 
   // Handle Delete Artwork (Owner Action)
   const handleDeleteArtwork = async (artworkId: string) => {
+    if (!isOwnerMode) return;
     setArtworks(prev => prev.filter(art => art.id !== artworkId));
     if (selectedArtwork?.id === artworkId) {
       setSelectedArtwork(null);
     }
     await deleteArtworkFromCloud(artworkId);
+  };
+
+  // Owner Authentication Handlers
+  const handleOwnerLoginSuccess = () => {
+    setIsOwnerMode(true);
+    try {
+      sessionStorage.setItem(SESSION_KEY_OWNER_AUTH, 'verified');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleLogoutOwner = async () => {
+    await signOutOwner();
+    setIsOwnerMode(false);
+    try {
+      sessionStorage.removeItem(SESSION_KEY_OWNER_AUTH);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const totalLikesCount = artworks.reduce((acc, a) => acc + (a.likesCount || 0), 0);
@@ -285,9 +317,13 @@ export default function App() {
       <Header
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        onOpenUpload={() => setShowUploadModal(true)}
+        onOpenUpload={() => {
+          if (isOwnerMode) setShowUploadModal(true);
+          else setShowOwnerLoginModal(true);
+        }}
         isOwnerMode={isOwnerMode}
-        setIsOwnerMode={setIsOwnerMode}
+        onOpenOwnerLogin={() => setShowOwnerLoginModal(true)}
+        onLogoutOwner={handleLogoutOwner}
       />
 
       {/* Main Content */}
@@ -307,8 +343,8 @@ export default function App() {
           onLikeArtwork={handleLikeArtwork}
           likedArtworkIds={likedArtworkIds}
           onResetFilters={() => setSearchQuery('')}
-          onDeleteArtwork={handleDeleteArtwork}
-          onEditArtwork={(art) => setEditingArtwork(art)}
+          onDeleteArtwork={isOwnerMode ? handleDeleteArtwork : undefined}
+          onEditArtwork={isOwnerMode ? (art) => setEditingArtwork(art) : undefined}
           onOpenUpload={() => setShowUploadModal(true)}
           isOwnerMode={isOwnerMode}
         />
@@ -328,12 +364,23 @@ export default function App() {
             )}
           </div>
           <div className="flex items-center gap-4 text-xs">
-            <button 
-              onClick={() => setIsOwnerMode(!isOwnerMode)} 
-              className="hover:text-indigo-300 transition-colors"
-            >
-              {isOwnerMode ? '🔒 Exit Owner Mode' : '🔑 Owner Mode'}
-            </button>
+            {isOwnerMode ? (
+              <button 
+                onClick={handleLogoutOwner} 
+                className="flex items-center gap-1 text-emerald-400 hover:text-red-400 transition-colors font-medium"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Owner Mode Active (Click to Lock)</span>
+              </button>
+            ) : (
+              <button 
+                onClick={() => setShowOwnerLoginModal(true)} 
+                className="flex items-center gap-1 text-slate-400 hover:text-indigo-300 transition-colors"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Artist Access ({OWNER_EMAIL})</span>
+              </button>
+            )}
           </div>
         </div>
       </footer>
@@ -348,14 +395,21 @@ export default function App() {
           comments={commentsMap[selectedArtwork.id] || []}
           onAddComment={handleAddComment}
           onLikeComment={handleLikeComment}
-          onDeleteComment={handleDeleteComment}
-          onDeleteArtwork={handleDeleteArtwork}
-          onEditArtwork={(art) => setEditingArtwork(art)}
+          onDeleteComment={isOwnerMode ? handleDeleteComment : undefined}
+          onDeleteArtwork={isOwnerMode ? handleDeleteArtwork : undefined}
+          onEditArtwork={isOwnerMode ? (art) => setEditingArtwork(art) : undefined}
           isOwnerMode={isOwnerMode}
         />
       )}
 
-      {editingArtwork && (
+      {/* Owner Login Modal */}
+      <OwnerLoginModal
+        isOpen={showOwnerLoginModal}
+        onClose={() => setShowOwnerLoginModal(false)}
+        onSuccess={handleOwnerLoginSuccess}
+      />
+
+      {isOwnerMode && editingArtwork && (
         <EditArtworkModal
           artwork={editingArtwork}
           onClose={() => setEditingArtwork(null)}
@@ -363,7 +417,7 @@ export default function App() {
         />
       )}
 
-      {showUploadModal && (
+      {isOwnerMode && showUploadModal && (
         <UploadArtworkModal
           onClose={() => setShowUploadModal(false)}
           onAddArtwork={handleAddArtwork}

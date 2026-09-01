@@ -5,9 +5,106 @@ import {
   setDoc, 
   deleteDoc, 
   onSnapshot, 
-  increment 
+  increment,
+  auth,
+  googleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  FirebaseUser
 } from '../lib/firebase';
 import { Artwork, Comment, InboxMessage } from '../types';
+
+export const OWNER_EMAIL = 'rishikhare1224@gmail.com';
+const OWNER_PASSCODE_STORAGE_KEY = 'rishikhare_owner_secret_code';
+const DEFAULT_PASSCODES = ['rishi1224', 'rishikhare', 'rishi2026', 'khare1224'];
+
+/**
+ * Checks if the given email is the authorized artist/owner
+ */
+export function isAuthorizedOwnerEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const cleanEmail = email.trim().toLowerCase();
+  return cleanEmail === OWNER_EMAIL.toLowerCase();
+}
+
+/**
+ * Checks if an entered passcode is correct for owner mode
+ */
+export function verifyOwnerPasscode(code: string): boolean {
+  if (!code) return false;
+  const trimmed = code.trim().toLowerCase();
+  
+  // Check default passcodes
+  if (DEFAULT_PASSCODES.includes(trimmed)) return true;
+  
+  // Check any custom passcode saved by owner
+  try {
+    const custom = localStorage.getItem(OWNER_PASSCODE_STORAGE_KEY);
+    if (custom && custom.trim().toLowerCase() === trimmed) {
+      return true;
+    }
+  } catch (e) {
+    console.error(e);
+  }
+
+  return false;
+}
+
+/**
+ * Set custom passcode for owner mode
+ */
+export function setCustomOwnerPasscode(newCode: string): void {
+  try {
+    localStorage.setItem(OWNER_PASSCODE_STORAGE_KEY, newCode.trim());
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/**
+ * Sign in with Google and verify owner identity
+ */
+export async function signInOwnerWithGoogle(): Promise<{ success: boolean; isOwner: boolean; email?: string; error?: string }> {
+  try {
+    const result = await signInWithPopup(auth, googleAuthProvider);
+    const user = result.user;
+    const isOwner = isAuthorizedOwnerEmail(user.email);
+    return {
+      success: true,
+      isOwner,
+      email: user.email || undefined
+    };
+  } catch (error: any) {
+    console.error('Google Sign In Error:', error);
+    return {
+      success: false,
+      isOwner: false,
+      error: error?.message || 'Failed to sign in with Google'
+    };
+  }
+}
+
+/**
+ * Sign out current Firebase Auth user
+ */
+export async function signOutOwner(): Promise<void> {
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.error('Error signing out:', err);
+  }
+}
+
+/**
+ * Listen to Firebase Auth state
+ */
+export function subscribeToAuth(callback: (user: FirebaseUser | null, isOwner: boolean) => void) {
+  return onAuthStateChanged(auth, (user) => {
+    const isOwner = user ? isAuthorizedOwnerEmail(user.email) : false;
+    callback(user, isOwner);
+  });
+}
 
 const ARTWORKS_COLLECTION = 'artworks';
 const COMMENTS_COLLECTION = 'comments';

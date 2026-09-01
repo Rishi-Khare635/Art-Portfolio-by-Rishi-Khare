@@ -4,7 +4,9 @@ import {
   PlusCircle, 
   Lock, 
   Unlock, 
-  Search
+  Search,
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -12,7 +14,8 @@ interface HeaderProps {
   setSearchQuery: (query: string) => void;
   onOpenUpload: () => void;
   isOwnerMode: boolean;
-  setIsOwnerMode: (val: boolean) => void;
+  onOpenOwnerLogin: () => void;
+  onLogoutOwner: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,7 +23,8 @@ export const Header: React.FC<HeaderProps> = ({
   setSearchQuery,
   onOpenUpload,
   isOwnerMode,
-  setIsOwnerMode
+  onOpenOwnerLogin,
+  onLogoutOwner
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-[#121526]/90 backdrop-blur-xl border-b border-white/10 transition-all">
@@ -70,29 +74,30 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Artist / Owner Lock Toggle */}
-            <button
-              id="header-owner-lock-btn"
-              onClick={() => setIsOwnerMode(!isOwnerMode)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all ${
-                isOwnerMode 
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-semibold' 
-                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
-              }`}
-              title={isOwnerMode ? 'Artist Mode Active (Click to switch to Public View)' : 'Switch to Owner Mode'}
-            >
-              {isOwnerMode ? (
-                <>
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Owner Mode</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Visitor</span>
-                </>
-              )}
-            </button>
+            {/* Owner Status / Login & Lock Button */}
+            {isOwnerMode ? (
+              <button
+                id="header-owner-lock-btn"
+                onClick={onLogoutOwner}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-semibold hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-300 group"
+                title="Artist Mode Active. Click to lock and switch to Visitor Mode."
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 group-hover:hidden" />
+                <LogOut className="w-3.5 h-3.5 text-red-400 hidden group-hover:inline" />
+                <span className="group-hover:hidden">Owner</span>
+                <span className="hidden group-hover:inline">Lock</span>
+              </button>
+            ) : (
+              <button
+                id="header-owner-login-btn"
+                onClick={onOpenOwnerLogin}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/10 hover:border-indigo-500/30"
+                title="Artist Login (Restricted to Rishi Khare)"
+              >
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden sm:inline">Artist Login</span>
+              </button>
+            )}
 
           </div>
 

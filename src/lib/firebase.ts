@@ -16,6 +16,14 @@ import {
   serverTimestamp,
   increment 
 } from 'firebase/firestore';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App singleton
@@ -26,7 +34,11 @@ export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestore
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
 
-// Export Firestore utilities
+// Initialize Firebase Auth
+export const auth = getAuth(app);
+export const googleAuthProvider = new GoogleAuthProvider();
+
+// Export Firestore and Auth utilities
 export {
   collection,
   doc,
@@ -41,5 +53,9 @@ export {
   where,
   orderBy,
   serverTimestamp,
-  increment
+  increment,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged
 };
+export type { FirebaseUser };
