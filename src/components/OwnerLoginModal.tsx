@@ -6,11 +6,9 @@ import {
   ShieldCheck, 
   AlertCircle, 
   CheckCircle2, 
-  Sparkles,
   ArrowRight
 } from 'lucide-react';
 import { 
-  OWNER_EMAIL, 
   signInOwnerWithGoogle, 
   verifyOwnerPasscode 
 } from '../services/firebaseService';
@@ -53,7 +51,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
         }, 700);
       } else {
         setErrorMessage(
-          `Access restricted: Signed in as "${res.email}". Only the artist account (${OWNER_EMAIL}) can enter Owner Mode.`
+          `Access restricted: Signed in as "${res.email}". This account does not have artist privileges.`
         );
       }
     } catch (e: any) {
@@ -75,7 +73,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
         onClose();
       }, 700);
     } else {
-      setErrorMessage('Incorrect passcode. Please enter the artist key.');
+      setErrorMessage('Incorrect passcode.');
     }
   };
 
@@ -103,10 +101,10 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
             <Lock className="w-6 h-6" />
           </div>
           <h2 className="text-xl font-bold text-white tracking-tight font-display">
-            Artist / Owner Access
+            Artist Access
           </h2>
           <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-            Owner mode is protected and only accessible by Rishi Khare ({OWNER_EMAIL}).
+            Please authenticate to unlock portfolio management controls.
           </p>
         </div>
 
@@ -151,11 +149,8 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
                   d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.36 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                 />
               </svg>
-              <span>{isLoading ? 'Verifying...' : 'Sign in with Google (Artist Email)'}</span>
+              <span>{isLoading ? 'Verifying...' : 'Sign in with Google'}</span>
             </button>
-            <div className="text-[10px] text-slate-400 text-center mt-1.5">
-              Must match <span className="text-slate-300 font-mono font-semibold">{OWNER_EMAIL}</span>
-            </div>
           </div>
 
           <div className="flex items-center gap-3 my-2">
@@ -167,9 +162,8 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
           {/* Method 2: Passcode Entry */}
           <form onSubmit={handlePasscodeSubmit} className="space-y-3">
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1.5 flex items-center justify-between">
-                <span>Artist Secret Key</span>
-                <span className="text-[10px] text-slate-400 font-mono">Default: rishi1224</span>
+              <label className="block text-[11px] font-medium text-slate-300 mb-1.5">
+                Artist Passcode
               </label>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -177,7 +171,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
                   type="password"
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value)}
-                  placeholder="Enter secret artist key..."
+                  placeholder="Enter passcode..."
                   className="w-full bg-white/5 text-xs text-white placeholder-slate-400 pl-10 pr-4 py-2.5 rounded-2xl border border-white/10 focus:border-indigo-400 focus:outline-none transition-all font-mono"
                 />
               </div>
@@ -197,7 +191,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
         {/* Security badge note */}
         <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-center gap-2 text-[11px] text-slate-400">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Restricted to portfolio creator</span>
+          <span>Restricted to portfolio owner</span>
         </div>
       </div>
     </div>

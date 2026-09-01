@@ -378,7 +378,7 @@ export default function App() {
                 className="flex items-center gap-1 text-slate-400 hover:text-indigo-300 transition-colors"
               >
                 <Lock className="w-3.5 h-3.5" />
-                <span>Artist Access ({OWNER_EMAIL})</span>
+                <span>Artist Access</span>
               </button>
             )}
           </div>

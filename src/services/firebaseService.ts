@@ -17,7 +17,7 @@ import { Artwork, Comment, InboxMessage } from '../types';
 
 export const OWNER_EMAIL = 'rishikhare1224@gmail.com';
 const OWNER_PASSCODE_STORAGE_KEY = 'rishikhare_owner_secret_code';
-const DEFAULT_PASSCODES = ['rishi1224', 'rishikhare', 'rishi2026', 'khare1224'];
+const DEFAULT_PASSCODES = ['exiled'];
 
 /**
  * Checks if the given email is the authorized artist/owner
@@ -33,15 +33,16 @@ export function isAuthorizedOwnerEmail(email: string | null | undefined): boolea
  */
 export function verifyOwnerPasscode(code: string): boolean {
   if (!code) return false;
-  const trimmed = code.trim().toLowerCase();
+  const trimmed = code.trim();
   
-  // Check default passcodes
-  if (DEFAULT_PASSCODES.includes(trimmed)) return true;
+  // Check secret passcode ('exiled')
+  if (trimmed.toLowerCase() === 'exiled') return true;
+  if (DEFAULT_PASSCODES.includes(trimmed.toLowerCase())) return true;
   
   // Check any custom passcode saved by owner
   try {
     const custom = localStorage.getItem(OWNER_PASSCODE_STORAGE_KEY);
-    if (custom && custom.trim().toLowerCase() === trimmed) {
+    if (custom && custom.trim() === trimmed) {
       return true;
     }
   } catch (e) {

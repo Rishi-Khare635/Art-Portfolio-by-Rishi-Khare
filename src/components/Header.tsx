@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
                 id="header-owner-login-btn"
                 onClick={onOpenOwnerLogin}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/10 hover:border-indigo-500/30"
-                title="Artist Login (Restricted to Rishi Khare)"
+                title="Artist Login"
               >
                 <Lock className="w-3.5 h-3.5 text-slate-400" />
                 <span className="hidden sm:inline">Artist Login</span>
