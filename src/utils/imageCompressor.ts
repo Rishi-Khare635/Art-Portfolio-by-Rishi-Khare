@@ -48,7 +48,28 @@ export async function compressImageFile(
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Embed bold 'rishi' watermark directly onto new uploaded image canvas
+          // Embed anti-AI disruption watermark directly onto new uploaded image canvas pixels
+          ctx.save();
+
+          // 1. Diagonal Anti-AI Inpainting repeating pattern
+          ctx.translate(width / 2, height / 2);
+          ctx.rotate((-25 * Math.PI) / 180);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          const centerFontSize = Math.max(14, Math.round(width * 0.028));
+          ctx.font = `bold ${centerFontSize}px monospace, sans-serif`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+          ctx.shadowBlur = 3;
+
+          const stepY = centerFontSize * 3.5;
+          for (let y = -height; y < height; y += stepY) {
+            ctx.fillText('rishi • rishi • © rishi • rishi • rishi', 0, y);
+          }
+          ctx.restore();
+
+          // 2. High-contrast bold corner signature stamp
           ctx.save();
           const fontSize = Math.max(20, Math.round(width * 0.045));
           ctx.font = `900 ${fontSize}px monospace, system-ui, sans-serif`;

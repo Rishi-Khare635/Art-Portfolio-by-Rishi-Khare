@@ -118,15 +118,22 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
               src={artwork.imageUrl}
               alt={artwork.title}
               draggable={false}
-              className="max-h-[60vh] w-auto max-w-full object-contain rounded-2xl shadow-2xl border border-white/10 protected-artwork-img"
+              className="max-h-[60vh] w-auto max-w-full object-contain rounded-2xl shadow-2xl border border-white/10 protected-artwork-img pointer-events-none select-none"
               referrerPolicy="no-referrer"
+              onContextMenu={(e) => e.preventDefault()}
             />
 
-            {/* Dynamic Watermark */}
+            {/* Dynamic Anti-AI Inpainting Copyright Watermark */}
             <CopyrightWatermark 
               variant="modal" 
               title={artwork.title} 
               year={artwork.year} 
+            />
+
+            {/* Invisible Drag & Long-press Shield */}
+            <div 
+              className="absolute inset-0 z-10 select-none pointer-events-none"
+              onContextMenu={(e) => e.preventDefault()}
             />
           </div>
 

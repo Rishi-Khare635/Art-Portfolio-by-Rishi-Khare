@@ -65,15 +65,22 @@ export const ArtworkCard: React.FC<ArtworkCardProps> = ({
           alt={artwork.title}
           loading="lazy"
           draggable={false}
-          className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02] protected-artwork-img"
+          className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02] protected-artwork-img pointer-events-none select-none"
           referrerPolicy="no-referrer"
+          onContextMenu={(e) => e.preventDefault()}
         />
 
-        {/* Dynamic Un-Croppable Copyright Watermark */}
+        {/* Dynamic Anti-AI Inpainting Copyright Watermark */}
         <CopyrightWatermark 
           variant="card" 
           title={artwork.title} 
           year={artwork.year} 
+        />
+
+        {/* Invisible Click & Drag Trap Shield preventing image drag/extract */}
+        <div 
+          className="absolute inset-0 z-10 select-none pointer-events-none"
+          onContextMenu={(e) => e.preventDefault()}
         />
 
         {/* Subtle Gradient overlay */}

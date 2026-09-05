@@ -100,4 +100,14 @@
   }
 }
 
+/* Instant Screen Blur when Command or Control is held */
+body.screen-blurred-active #root {
+  filter: blur(40px) brightness(0.4) saturate(0.4) !important;
+  -webkit-filter: blur(40px) brightness(0.4) saturate(0.4) !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  transition: filter 0.04s ease-out, -webkit-filter 0.04s ease-out;
+}
+
 
