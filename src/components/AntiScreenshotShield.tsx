@@ -12,6 +12,7 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
   onAttemptDetected
 }) => {
   const [isBlurred, setIsBlurred] = useState(false);
+  const [blurReason, setBlurReason] = useState<'modifier' | 'printscreen'>('modifier');
   const [attemptCount, setAttemptCount] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_SCREENSHOT_ATTEMPTS);
@@ -23,6 +24,7 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
 
   // Track whether a modifier key sequence is actively held to avoid spamming attempt counter
   const isHeldRef = useRef(false);
+  const printScreenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync body class for deep DOM filter blur
   useEffect(() => {
@@ -38,9 +40,11 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
 
   useEffect(() => {
     // Helper to activate blur and record attempts
-    const activateBlur = () => {
+    const activateBlur = (reason: 'modifier' | 'printscreen' = 'modifier') => {
       setIsBlurred(true);
-      if (!isHeldRef.current) {
+      setBlurReason(reason);
+
+      if (!isHeldRef.current || reason === 'printscreen') {
         isHeldRef.current = true;
         setAttemptCount(prev => {
           const next = prev + 1;
@@ -55,7 +59,7 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
           return next;
         });
 
-        // Neutralize clipboard if a screenshot was attempted
+        // Neutralize clipboard immediately if PrintScreen or screenshot keys were pressed
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(
@@ -66,17 +70,39 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
           console.error(e);
         }
       }
+
+      // For PrintScreen (which is a momentary key tap, unlike holding Ctrl/Cmd):
+      // Keep blurred for 2 seconds to ensure any capture attempt is completely obscured
+      if (reason === 'printscreen') {
+        if (printScreenTimeoutRef.current) {
+          clearTimeout(printScreenTimeoutRef.current);
+        }
+        printScreenTimeoutRef.current = setTimeout(() => {
+          isHeldRef.current = false;
+          setIsBlurred(false);
+        }, 2000);
+      }
     };
 
     // Helper to deactivate blur
     const deactivateBlur = () => {
+      // If a PrintScreen lockout is active, let its timer complete
+      if (printScreenTimeoutRef.current) return;
       isHeldRef.current = false;
       setIsBlurred(false);
     };
 
-    // Keydown Listener: If Command or Ctrl (or any key while Cmd/Ctrl is held) is pressed -> BLUR
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isCmdOrCtrl = 
+    const isPrintScreenKey = (e: KeyboardEvent) => {
+      return (
+        e.key === 'PrintScreen' || 
+        e.code === 'PrintScreen' || 
+        e.keyCode === 44 || 
+        e.which === 44
+      );
+    };
+
+    const isModifierKey = (e: KeyboardEvent) => {
+      return (
         e.key === 'Meta' || 
         e.key === 'Control' || 
         e.key === 'OS' || 
@@ -85,20 +111,29 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
         e.code === 'ControlLeft' || 
         e.code === 'ControlRight' || 
         e.metaKey || 
-        e.ctrlKey;
+        e.ctrlKey
+      );
+    };
 
-      const isPrintScreen = 
-        e.key === 'PrintScreen' || 
-        e.code === 'PrintScreen' || 
-        e.keyCode === 44;
+    // Keydown Listener: Command, Ctrl, or PrintScreen
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isPrintScreenKey(e)) {
+        activateBlur('printscreen');
+        return;
+      }
 
-      if (isCmdOrCtrl || isPrintScreen) {
-        activateBlur();
+      if (isModifierKey(e)) {
+        activateBlur('modifier');
       }
     };
 
-    // Keyup Listener: As soon as Command or Ctrl is released -> UNBLUR
+    // Keyup Listener: Many OSes (especially Windows) only dispatch PrintScreen on keyup
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (isPrintScreenKey(e)) {
+        activateBlur('printscreen');
+        return;
+      }
+
       // Check if both Command (Meta) and Control are released
       const isStillHeld = e.metaKey || e.ctrlKey;
       if (!isStillHeld) {
@@ -106,9 +141,9 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
       }
     };
 
-    // Mouse / Pointer check to recover if the OS swallowed a keyup event (e.g. after Mac screenshot tool closes)
+    // Mouse / Pointer check to recover if the OS swallowed a keyup event
     const handlePointerActivity = (e: MouseEvent) => {
-      if (isHeldRef.current) {
+      if (isHeldRef.current && !printScreenTimeoutRef.current) {
         const metaHeld = e.getModifierState ? e.getModifierState('Meta') : e.metaKey;
         const ctrlHeld = e.getModifierState ? e.getModifierState('Control') : e.ctrlKey;
         if (!metaHeld && !ctrlHeld) {
@@ -118,11 +153,10 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
     };
 
     // Window Focus / Blur
-    // If the window loses focus while Cmd/Ctrl is down (e.g. Mac Cmd+Shift+4 crosshairs appear),
-    // keep it blurred so the captured region is blurred!
     const handleWindowFocus = () => {
-      // Once the window regains focus, check if keys are still down
-      deactivateBlur();
+      if (!printScreenTimeoutRef.current) {
+        deactivateBlur();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
@@ -137,6 +171,9 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
       window.removeEventListener('mousemove', handlePointerActivity);
       window.removeEventListener('mousedown', handlePointerActivity);
       window.removeEventListener('focus', handleWindowFocus);
+      if (printScreenTimeoutRef.current) {
+        clearTimeout(printScreenTimeoutRef.current);
+      }
     };
   }, [onAttemptDetected]);
 
@@ -159,7 +196,9 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
 
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-mono font-bold">
           <ShieldAlert className="w-3.5 h-3.5" />
-          <span>COMMAND / CTRL KEY ACTIVE</span>
+          <span>
+            {blurReason === 'printscreen' ? 'PRINT SCREEN DETECTED' : 'COMMAND / CTRL KEY ACTIVE'}
+          </span>
         </div>
 
         <h3 className="text-lg font-black text-white font-display tracking-tight">
@@ -167,7 +206,11 @@ export const AntiScreenshotShield: React.FC<AntiScreenshotShieldProps> = ({
         </h3>
 
         <p className="text-xs text-slate-300 leading-relaxed font-sans">
-          The entire portfolio is blurred while <span className="font-bold text-white">Command</span> or <span className="font-bold text-white">Control</span> is held. Release the key to restore the screen.
+          {blurReason === 'printscreen' ? (
+            <>PrintScreen capture was intercepted and blurred. The clipboard has been wiped.</>
+          ) : (
+            <>The entire portfolio is blurred while <span className="font-bold text-white">Command</span> or <span className="font-bold text-white">Control</span> is held. Release the key to restore the screen.</>
+          )}
         </p>
 
         <div className="w-full mt-1 p-2.5 rounded-xl bg-red-950/50 border border-red-500/30 flex items-center justify-between text-xs">
