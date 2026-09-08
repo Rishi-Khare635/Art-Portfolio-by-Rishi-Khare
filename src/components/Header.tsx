@@ -3,10 +3,10 @@ import {
   Palette, 
   PlusCircle, 
   Lock, 
-  Unlock, 
   Search,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  KeyRound
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -16,6 +16,7 @@ interface HeaderProps {
   isOwnerMode: boolean;
   onOpenOwnerLogin: () => void;
   onLogoutOwner: () => void;
+  onOpenChangePassword?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,7 +25,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenUpload,
   isOwnerMode,
   onOpenOwnerLogin,
-  onLogoutOwner
+  onLogoutOwner,
+  onOpenChangePassword
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-[#121526]/90 backdrop-blur-xl border-b border-white/10 transition-all">
@@ -67,10 +69,22 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-upload-btn"
                 onClick={onOpenUpload}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-all active:scale-95 shadow-md shadow-indigo-900/30"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-all active:scale-95 shadow-md shadow-indigo-900/30 cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Add Sketch</span>
+              </button>
+            )}
+
+            {/* Owner Settings: Change Password Button */}
+            {isOwnerMode && onOpenChangePassword && (
+              <button
+                id="header-change-pass-btn"
+                onClick={onOpenChangePassword}
+                className="p-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all cursor-pointer"
+                title="Change Master Password"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
               </button>
             )}
 
@@ -79,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-owner-lock-btn"
                 onClick={onLogoutOwner}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-semibold hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-300 group"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-semibold hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-300 group cursor-pointer"
                 title="Artist Mode Active. Click to lock and switch to Visitor Mode."
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 group-hover:hidden" />
@@ -91,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-owner-login-btn"
                 onClick={onOpenOwnerLogin}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/10 hover:border-indigo-500/30"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/10 hover:border-indigo-500/30 cursor-pointer"
                 title="Artist Login"
               >
                 <Lock className="w-3.5 h-3.5 text-slate-400" />

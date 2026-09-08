@@ -5,90 +5,9 @@ import {
   setDoc, 
   deleteDoc, 
   onSnapshot, 
-  increment,
-  auth,
-  googleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-  FirebaseUser
+  increment
 } from '../lib/firebase';
 import { Artwork, Comment, InboxMessage } from '../types';
-
-export const OWNER_EMAIL = 'rishikhare1224@gmail.com';
-
-/**
- * Checks if the given email is the authorized artist/owner
- */
-export function isAuthorizedOwnerEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const cleanEmail = email.trim().toLowerCase();
-  return cleanEmail === OWNER_EMAIL.toLowerCase();
-}
-
-/**
- * Sign in with Google and verify owner identity.
- * Strictly rejects and signs out any account that is not rishikhare1224@gmail.com.
- */
-export async function signInOwnerWithGoogle(): Promise<{ success: boolean; isOwner: boolean; email?: string; error?: string }> {
-  try {
-    const result = await signInWithPopup(auth, googleAuthProvider);
-    const user = result.user;
-    const isOwner = isAuthorizedOwnerEmail(user.email);
-
-    if (!isOwner) {
-      // Immediately revoke session for unauthorized Google accounts
-      await signOut(auth);
-      return {
-        success: false,
-        isOwner: false,
-        email: user.email || undefined,
-        error: `Access Denied: Signed in as "${user.email || 'unknown'}". Only rishikhare1224@gmail.com is authorized as the artist.`
-      };
-    }
-
-    return {
-      success: true,
-      isOwner: true,
-      email: user.email || undefined
-    };
-  } catch (error: any) {
-    console.error('Google Sign In Error:', error);
-    return {
-      success: false,
-      isOwner: false,
-      error: error?.message || 'Failed to sign in with Google'
-    };
-  }
-}
-
-/**
- * Sign out current Firebase Auth user
- */
-export async function signOutOwner(): Promise<void> {
-  try {
-    await signOut(auth);
-  } catch (err) {
-    console.error('Error signing out:', err);
-  }
-}
-
-/**
- * Listen to Firebase Auth state.
- * If an unauthorized account is logged in, automatically kicks them out.
- */
-export function subscribeToAuth(callback: (user: FirebaseUser | null, isOwner: boolean) => void) {
-  return onAuthStateChanged(auth, async (user) => {
-    const isOwner = user ? isAuthorizedOwnerEmail(user.email) : false;
-    if (user && !isOwner) {
-      // Auto revoke any non-owner Google session
-      await signOut(auth);
-      callback(null, false);
-      return;
-    }
-    callback(user, isOwner);
-  });
-}
 
 const ARTWORKS_COLLECTION = 'artworks';
 const COMMENTS_COLLECTION = 'comments';

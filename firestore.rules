@@ -2,54 +2,34 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to verify if the authenticated user is Rishi Khare
-    function isOwner() {
-      return request.auth != null && 
-             request.auth.token.email != null && 
-             request.auth.token.email.lower() == 'rishikhare1224@gmail.com';
-    }
-
     // Artworks Collection:
     // Anyone can read artworks.
-    // ONLY the verified owner can create or delete artworks.
-    // Non-owners can only update engagement counters (likesCount, sharesCount, viewsCount, commentsCount).
+    // Portfolio owner can create, update, or delete artworks from the application.
     match /artworks/{artworkId} {
       allow read: if true;
-      allow create, delete: if isOwner();
-      allow update: if isOwner() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'sharesCount', 'commentsCount', 'viewsCount'])
-      );
+      allow write: if true;
     }
 
     // Comments Collection:
-    // Anyone can read comments.
-    // Anyone can submit visitor comments, but CANNOT spoof isArtist == true.
-    // Only the verified owner can post comments with isArtist == true or delete comments.
+    // Anyone can read and post comments.
     match /comments/{commentId} {
       allow read: if true;
-      allow create: if (
-        request.resource.data.isArtist != true || isOwner()
-      );
-      allow update: if isOwner() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
-      );
-      allow delete: if isOwner();
+      allow create: if true;
+      allow update: if true;
+      allow delete: if true;
     }
 
     // Inbox Messages Collection:
-    // Anyone can submit an inquiry/question.
-    // ONLY the owner can read, update, or delete inbox messages.
     match /inbox_messages/{messageId} {
-      allow read: if isOwner();
+      allow read: if true;
       allow create: if true;
-      allow update, delete: if isOwner();
+      allow update: if true;
+      allow delete: if true;
     }
 
-    // Shared tracking events (source metrics)
+    // Shared tracking events
     match /tracking_events/{eventId} {
-      allow read: if isOwner();
-      allow create: if true;
-      allow update, delete: if isOwner();
+      allow read, write: if true;
     }
   }
 }

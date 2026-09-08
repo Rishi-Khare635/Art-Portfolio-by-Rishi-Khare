@@ -10,6 +10,7 @@ import { ArtworkModal } from './components/ArtworkModal';
 import { UploadArtworkModal } from './components/UploadArtworkModal';
 import { EditArtworkModal } from './components/EditArtworkModal';
 import { OwnerLoginModal } from './components/OwnerLoginModal';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { AntiScreenshotShield } from './components/AntiScreenshotShield';
 import { Shield, ShieldCheck, Lock } from 'lucide-react';
 import { 
@@ -22,11 +23,9 @@ import {
   deleteArtworkFromCloud,
   addCommentToCloud,
   likeCommentInCloud,
-  deleteCommentFromCloud,
-  subscribeToAuth,
-  signOutOwner,
-  OWNER_EMAIL
+  deleteCommentFromCloud
 } from './services/firebaseService';
+import { hasActiveOwnerSession, endOwnerSession } from './services/authService';
 
 const STORAGE_KEY_LIKES = 'rishikhare_liked_v5';
 
@@ -47,8 +46,8 @@ export default function App() {
     return new Set<string>();
   });
 
-  // 3. Strict Owner Mode (Defaults to FALSE for all visitors; only TRUE when Firebase Auth confirms rishikhare1224@gmail.com)
-  const [isOwnerMode, setIsOwnerMode] = useState<boolean>(false);
+  // 3. Owner Mode (Protected by Master Password)
+  const [isOwnerMode, setIsOwnerMode] = useState<boolean>(() => hasActiveOwnerSession());
 
   // 4. Modals and Active Artwork
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
@@ -56,16 +55,8 @@ export default function App() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [editingArtwork, setEditingArtwork] = useState<Artwork | null>(null);
   const [showOwnerLoginModal, setShowOwnerLoginModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showCopyrightAlert, setShowCopyrightAlert] = useState(false);
-
-  // Sync Firebase Auth status for auto owner recognition from Chrome browser session
-  useEffect(() => {
-    const unsubAuth = subscribeToAuth((user, isOwner) => {
-      setIsOwnerMode(Boolean(user && isOwner));
-    });
-
-    return () => unsubAuth();
-  }, []);
 
   // INITIALIZE FIREBASE & REAL-TIME LISTENERS
   useEffect(() => {
@@ -279,8 +270,8 @@ export default function App() {
     setIsOwnerMode(true);
   };
 
-  const handleLogoutOwner = async () => {
-    await signOutOwner();
+  const handleLogoutOwner = () => {
+    endOwnerSession();
     setIsOwnerMode(false);
   };
 
@@ -300,6 +291,7 @@ export default function App() {
         isOwnerMode={isOwnerMode}
         onOpenOwnerLogin={() => setShowOwnerLoginModal(true)}
         onLogoutOwner={handleLogoutOwner}
+        onOpenChangePassword={() => setShowChangePasswordModal(true)}
       />
 
       {/* Main Content */}
@@ -387,6 +379,14 @@ export default function App() {
         onClose={() => setShowOwnerLoginModal(false)}
         onSuccess={handleOwnerLoginSuccess}
       />
+
+      {/* Change Master Password Modal */}
+      {isOwnerMode && (
+        <ChangePasswordModal
+          isOpen={showChangePasswordModal}
+          onClose={() => setShowChangePasswordModal(false)}
+        />
+      )}
 
       {isOwnerMode && editingArtwork && (
         <EditArtworkModal
