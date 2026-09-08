@@ -8,6 +8,7 @@ import {
   increment
 } from '../lib/firebase';
 import { Artwork, Comment, InboxMessage } from '../types';
+import { INITIAL_ARTWORKS, INITIAL_COMMENTS } from '../data/initialArtworks';
 
 const ARTWORKS_COLLECTION = 'artworks';
 const COMMENTS_COLLECTION = 'comments';
@@ -45,12 +46,15 @@ export function getCachedArtworks(): Artwork[] {
   try {
     const cached = localStorage.getItem(CACHE_KEY_ARTWORKS);
     if (cached) {
-      return JSON.parse(cached);
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
     }
   } catch (e) {
     console.error('Failed to read artworks cache:', e);
   }
-  return [];
+  return INITIAL_ARTWORKS || [];
 }
 
 /**
@@ -81,13 +85,15 @@ export function getCachedComments(): Record<string, Comment[]> {
             cleaned[artId] = list.filter((c: any) => !c.id?.startsWith('cmt-sync-'));
           }
         }
-        return cleaned;
+        if (Object.keys(cleaned).length > 0) {
+          return cleaned;
+        }
       }
     }
   } catch (e) {
     console.error('Failed to read comments cache:', e);
   }
-  return {};
+  return INITIAL_COMMENTS || {};
 }
 
 /**
