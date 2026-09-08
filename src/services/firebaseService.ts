@@ -16,8 +16,6 @@ import {
 import { Artwork, Comment, InboxMessage } from '../types';
 
 export const OWNER_EMAIL = 'rishikhare1224@gmail.com';
-const OWNER_PASSCODE_STORAGE_KEY = 'rishikhare_owner_secret_code';
-const DEFAULT_PASSCODES = ['exiled'];
 
 /**
  * Checks if the given email is the authorized artist/owner
@@ -29,51 +27,29 @@ export function isAuthorizedOwnerEmail(email: string | null | undefined): boolea
 }
 
 /**
- * Checks if an entered passcode is correct for owner mode
- */
-export function verifyOwnerPasscode(code: string): boolean {
-  if (!code) return false;
-  const trimmed = code.trim();
-  
-  // Check secret passcode ('exiled')
-  if (trimmed.toLowerCase() === 'exiled') return true;
-  if (DEFAULT_PASSCODES.includes(trimmed.toLowerCase())) return true;
-  
-  // Check any custom passcode saved by owner
-  try {
-    const custom = localStorage.getItem(OWNER_PASSCODE_STORAGE_KEY);
-    if (custom && custom.trim() === trimmed) {
-      return true;
-    }
-  } catch (e) {
-    console.error(e);
-  }
-
-  return false;
-}
-
-/**
- * Set custom passcode for owner mode
- */
-export function setCustomOwnerPasscode(newCode: string): void {
-  try {
-    localStorage.setItem(OWNER_PASSCODE_STORAGE_KEY, newCode.trim());
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-/**
- * Sign in with Google and verify owner identity
+ * Sign in with Google and verify owner identity.
+ * Strictly rejects and signs out any account that is not rishikhare1224@gmail.com.
  */
 export async function signInOwnerWithGoogle(): Promise<{ success: boolean; isOwner: boolean; email?: string; error?: string }> {
   try {
     const result = await signInWithPopup(auth, googleAuthProvider);
     const user = result.user;
     const isOwner = isAuthorizedOwnerEmail(user.email);
+
+    if (!isOwner) {
+      // Immediately revoke session for unauthorized Google accounts
+      await signOut(auth);
+      return {
+        success: false,
+        isOwner: false,
+        email: user.email || undefined,
+        error: `Access Denied: Signed in as "${user.email || 'unknown'}". Only rishikhare1224@gmail.com is authorized as the artist.`
+      };
+    }
+
     return {
       success: true,
-      isOwner,
+      isOwner: true,
       email: user.email || undefined
     };
   } catch (error: any) {
@@ -98,11 +74,18 @@ export async function signOutOwner(): Promise<void> {
 }
 
 /**
- * Listen to Firebase Auth state
+ * Listen to Firebase Auth state.
+ * If an unauthorized account is logged in, automatically kicks them out.
  */
 export function subscribeToAuth(callback: (user: FirebaseUser | null, isOwner: boolean) => void) {
-  return onAuthStateChanged(auth, (user) => {
+  return onAuthStateChanged(auth, async (user) => {
     const isOwner = user ? isAuthorizedOwnerEmail(user.email) : false;
+    if (user && !isOwner) {
+      // Auto revoke any non-owner Google session
+      await signOut(auth);
+      callback(null, false);
+      return;
+    }
     callback(user, isOwner);
   });
 }

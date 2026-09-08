@@ -29,7 +29,6 @@ import {
 } from './services/firebaseService';
 
 const STORAGE_KEY_LIKES = 'rishikhare_liked_v5';
-const SESSION_KEY_OWNER_AUTH = 'rishikhare_verified_owner_session';
 
 export default function App() {
   // 1. Core Data State (synchronized with Firebase Firestore + instant initial cache)
@@ -48,15 +47,8 @@ export default function App() {
     return new Set<string>();
   });
 
-  // 3. Strict Owner Mode (Defaults to FALSE for all visitors)
-  const [isOwnerMode, setIsOwnerMode] = useState<boolean>(() => {
-    try {
-      const sessionAuth = sessionStorage.getItem(SESSION_KEY_OWNER_AUTH);
-      return sessionAuth === 'verified';
-    } catch {
-      return false;
-    }
-  });
+  // 3. Strict Owner Mode (Defaults to FALSE for all visitors; only TRUE when Firebase Auth confirms rishikhare1224@gmail.com)
+  const [isOwnerMode, setIsOwnerMode] = useState<boolean>(false);
 
   // 4. Modals and Active Artwork
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
@@ -66,17 +58,10 @@ export default function App() {
   const [showOwnerLoginModal, setShowOwnerLoginModal] = useState(false);
   const [showCopyrightAlert, setShowCopyrightAlert] = useState(false);
 
-  // Sync Firebase Auth status for auto owner recognition
+  // Sync Firebase Auth status for auto owner recognition from Chrome browser session
   useEffect(() => {
     const unsubAuth = subscribeToAuth((user, isOwner) => {
-      if (user && isOwner) {
-        setIsOwnerMode(true);
-        try {
-          sessionStorage.setItem(SESSION_KEY_OWNER_AUTH, 'verified');
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      setIsOwnerMode(Boolean(user && isOwner));
     });
 
     return () => unsubAuth();
@@ -292,21 +277,11 @@ export default function App() {
   // Owner Authentication Handlers
   const handleOwnerLoginSuccess = () => {
     setIsOwnerMode(true);
-    try {
-      sessionStorage.setItem(SESSION_KEY_OWNER_AUTH, 'verified');
-    } catch (e) {
-      console.error(e);
-    }
   };
 
   const handleLogoutOwner = async () => {
     await signOutOwner();
     setIsOwnerMode(false);
-    try {
-      sessionStorage.removeItem(SESSION_KEY_OWNER_AUTH);
-    } catch (e) {
-      console.error(e);
-    }
   };
 
   const totalLikesCount = artworks.reduce((acc, a) => acc + (a.likesCount || 0), 0);
