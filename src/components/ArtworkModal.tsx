@@ -74,16 +74,47 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
     }
   };
 
-  const formatTimeAgo = (timestamp: number) => {
-    if (!timestamp) return 'recently';
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return 'just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+  const formatCommentTime = (rawTimestamp: any): { relative: string; full: string } => {
+    if (!rawTimestamp) return { relative: 'just now', full: new Date().toLocaleString() };
+
+    const ts = typeof rawTimestamp === 'number'
+      ? rawTimestamp
+      : typeof rawTimestamp?.toMillis === 'function'
+        ? rawTimestamp.toMillis()
+        : typeof rawTimestamp?.seconds === 'number'
+          ? rawTimestamp.seconds * 1000
+          : typeof rawTimestamp === 'string'
+            ? new Date(rawTimestamp).getTime()
+            : Date.now();
+
+    const diffMs = Date.now() - ts;
+    const seconds = Math.max(0, Math.floor(diffMs / 1000));
+
+    let relative = 'just now';
+    if (seconds < 45) {
+      relative = 'just now';
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      relative = `${minutes}m ago`;
+    } else if (seconds < 86400) {
+      const hours = Math.floor(seconds / 3600);
+      relative = `${hours}h ago`;
+    } else if (seconds < 86400 * 7) {
+      const days = Math.floor(seconds / 86400);
+      relative = `${days}d ago`;
+    } else {
+      relative = new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    const full = new Date(ts).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+
+    return { relative, full };
   };
 
   return (
@@ -337,7 +368,17 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-slate-400">{formatTimeAgo(comment.timestamp)}</span>
+                        {(() => {
+                          const timeInfo = formatCommentTime(comment.timestamp);
+                          return (
+                            <span 
+                              className="text-[10px] text-slate-400 cursor-default" 
+                              title={timeInfo.full}
+                            >
+                              {timeInfo.relative}
+                            </span>
+                          );
+                        })()}
                         {isOwnerMode && onDeleteComment && (
                           <button
                             onClick={() => onDeleteComment(artwork.id, comment.id)}
@@ -351,7 +392,7 @@ export const ArtworkModal: React.FC<ArtworkModalProps> = ({
                     </div>
 
                     {/* Content */}
-                    <p className="text-xs text-slate-200 leading-relaxed pl-8">
+                    <p className="text-xs text-slate-200 leading-relaxed pl-8 whitespace-pre-wrap break-words">
                       {comment.content}
                     </p>
 

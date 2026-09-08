@@ -13,6 +13,7 @@ const ARTWORKS_COLLECTION = 'artworks';
 const COMMENTS_COLLECTION = 'comments';
 const INBOX_COLLECTION = 'inbox_messages';
 const CACHE_KEY_ARTWORKS = 'rishikhare_artworks_cache_v1';
+const CACHE_KEY_COMMENTS = 'rishikhare_comments_cache_v2';
 
 /**
  * Strips undefined properties recursively so Firestore setDoc never throws an invalid data error
@@ -55,12 +56,41 @@ export function getCachedArtworks(): Artwork[] {
 /**
  * Helper to save artworks to local cache
  */
-function setCachedArtworks(artworks: Artwork[]) {
+export function setCachedArtworks(artworks: Artwork[]) {
   try {
     localStorage.setItem(CACHE_KEY_ARTWORKS, JSON.stringify(artworks));
   } catch (e) {
     // If local storage is full due to large base64 images, ignore cache error
     console.warn('Could not cache all artworks to localStorage:', e);
+  }
+}
+
+/**
+ * Helper to get cached comments for instant rendering on reload
+ */
+export function getCachedComments(): Record<string, Comment[]> {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY_COMMENTS);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to read comments cache:', e);
+  }
+  return {};
+}
+
+/**
+ * Helper to save comments to local cache
+ */
+export function setCachedComments(commentsMap: Record<string, Comment[]>) {
+  try {
+    localStorage.setItem(CACHE_KEY_COMMENTS, JSON.stringify(commentsMap));
+  } catch (e) {
+    console.warn('Could not cache comments to localStorage:', e);
   }
 }
 
@@ -123,26 +153,74 @@ export function subscribeToArtworkComments(
  * Real-time listener for all comments (grouped by artworkId)
  */
 export function subscribeToAllComments(
-  onUpdate: (commentsMap: Record<string, Comment[]>) => void
+  onUpdate: (commentsMap: Record<string, Comment[]>) => void,
+  onError?: (err: Error) => void
 ) {
-  const commentsRef = collection(db, COMMENTS_COLLECTION);
-  return onSnapshot(commentsRef, (snapshot) => {
-    const map: Record<string, Comment[]> = {};
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data() as Comment;
-      const artId = data.artworkId;
-      if (artId) {
-        if (!map[artId]) map[artId] = [];
-        map[artId].push({ ...data, id: docSnap.id });
-      }
-    });
+  // 1. Immediately push cached comments so modal never shows 0 comments if data exists
+  const initialCache = getCachedComments();
+  if (Object.keys(initialCache).length > 0) {
+    onUpdate(initialCache);
+  }
 
-    // Sort comments inside each list
-    for (const artId of Object.keys(map)) {
-      map[artId].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const commentsRef = collection(db, COMMENTS_COLLECTION);
+  return onSnapshot(
+    commentsRef, 
+    (snapshot) => {
+      // Start with existing cache to preserve any offline/pending items
+      const map: Record<string, Comment[]> = { ...getCachedComments() };
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        const artId = data.artworkId;
+        if (artId) {
+          if (!map[artId]) map[artId] = [];
+          
+          // Parse timestamp safely (number, Firestore Timestamp, or date string)
+          const millis = typeof data.timestamp === 'number'
+            ? data.timestamp
+            : typeof data.timestamp?.toMillis === 'function'
+              ? data.timestamp.toMillis()
+              : typeof data.timestamp?.seconds === 'number'
+                ? data.timestamp.seconds * 1000
+                : typeof data.createdAt === 'number'
+                  ? data.createdAt
+                  : Date.now();
+
+          const formattedComment: Comment = {
+            id: docSnap.id,
+            artworkId: artId,
+            authorName: data.authorName || 'Visitor',
+            authorHandle: data.authorHandle || '@visitor',
+            avatarUrl: data.avatarUrl,
+            content: data.content || '',
+            timestamp: millis,
+            likes: Number(data.likes) || 0,
+            isArtist: Boolean(data.isArtist)
+          };
+
+          const existingIdx = map[artId].findIndex(c => c.id === docSnap.id);
+          if (existingIdx >= 0) {
+            map[artId][existingIdx] = formattedComment;
+          } else {
+            map[artId].push(formattedComment);
+          }
+        }
+      });
+
+      // Sort comments inside each list (chronological descending - newest first)
+      for (const artId of Object.keys(map)) {
+        map[artId].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      }
+
+      setCachedComments(map);
+      onUpdate(map);
+    },
+    (err) => {
+      console.warn('Comments realtime subscription fallback to local cache:', err);
+      const fallback = getCachedComments();
+      onUpdate(fallback);
+      onError?.(err);
     }
-    onUpdate(map);
-  });
+  );
 }
 
 /**
