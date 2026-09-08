@@ -74,7 +74,14 @@ export function getCachedComments(): Record<string, Comment[]> {
     if (cached) {
       const parsed = JSON.parse(cached);
       if (parsed && typeof parsed === 'object') {
-        return parsed;
+        const cleaned: Record<string, Comment[]> = {};
+        for (const [artId, list] of Object.entries(parsed)) {
+          if (Array.isArray(list)) {
+            // Strip out any synthetic placeholder comments
+            cleaned[artId] = list.filter((c: any) => !c.id?.startsWith('cmt-sync-'));
+          }
+        }
+        return cleaned;
       }
     }
   } catch (e) {

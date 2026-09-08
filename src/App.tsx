@@ -33,93 +33,26 @@ import { hasActiveOwnerSession, endOwnerSession } from './services/authService';
 const STORAGE_KEY_LIKES = 'rishikhare_liked_v5';
 
 /**
- * Reconciles artworks and comments so that card counter badges and actual modal
- * comments are strictly aligned. If an artwork's count > 0 but comments are empty,
- * it restores authentic feedback with precise timestamps and exact input formats.
+ * Reconciles artworks and comments using only authentic data.
+ * Does not generate any fake or placeholder comments.
  */
 function reconcileArtworksAndComments(
   artworksList: Artwork[],
   existingComments: Record<string, Comment[]>
 ): { syncedArtworks: Artwork[]; syncedComments: Record<string, Comment[]> } {
-  const syncedComments: Record<string, Comment[]> = { ...existingComments };
+  const syncedComments: Record<string, Comment[]> = {};
+  
+  // Only keep real, non-placeholder comments
+  for (const [artId, list] of Object.entries(existingComments)) {
+    if (Array.isArray(list)) {
+      syncedComments[artId] = list.filter(c => !c.id?.startsWith('cmt-sync-'));
+    }
+  }
+
   let modified = false;
-
-  const defaultCritiques: Record<string, { author: string; handle: string; text: string; hoursAgo: number; likes: number }[]> = {
-    anime: [
-      {
-        author: 'Marcus Chen',
-        handle: '@marcus_art',
-        text: 'The dynamic line weight and muscle anatomy on this sketch are incredible! Super crisp pen control.',
-        hoursAgo: 4,
-        likes: 5
-      },
-      {
-        author: 'Elena Rostova',
-        handle: '@elena_sketch',
-        text: 'The cross-hatching gives it that authentic 90s classic manga aesthetic. Outstanding contrast!',
-        hoursAgo: 9,
-        likes: 3
-      },
-      {
-        author: 'Kai Takahashi',
-        handle: '@kaitakahashi',
-        text: 'The silhouette and ink contrast against the negative space is phenomenal. Captures the intensity perfectly.',
-        hoursAgo: 17,
-        likes: 2
-      }
-    ],
-    default: [
-      {
-        author: 'Sarah Jenkins',
-        handle: '@sarah_j_art',
-        text: 'Really expressive linework! The composition and depth work together so seamlessly.',
-        hoursAgo: 5,
-        likes: 4
-      },
-      {
-        author: 'Arjun Mehta',
-        handle: '@arjunm_draws',
-        text: 'Incredible detail and execution. The precision in the linework is inspiring!',
-        hoursAgo: 11,
-        likes: 3
-      },
-      {
-        author: 'Jordan Lee',
-        handle: '@jordanlee',
-        text: 'The contrast between the dark ink strokes and open paper brings this right off the page.',
-        hoursAgo: 21,
-        likes: 2
-      }
-    ]
-  };
-
   const syncedArtworks = artworksList.map(art => {
     const list = syncedComments[art.id] || [];
-
-    // If the artwork has positive commentsCount but the list is empty:
-    if ((art.commentsCount || 0) > 0 && list.length === 0) {
-      modified = true;
-      const countToProvision = Math.min(Math.max(1, art.commentsCount || 1), 3);
-      const isAnime = /goku|vegeta|madara|naruto|anime|manga|character|dbz/i.test((art.title || '') + ' ' + (art.tags || []).join(' '));
-      const pool = isAnime ? defaultCritiques.anime : defaultCritiques.default;
-
-      const generated: Comment[] = pool.slice(0, countToProvision).map((item, idx) => ({
-        id: `cmt-sync-${art.id}-${idx}`,
-        artworkId: art.id,
-        authorName: item.author,
-        authorHandle: item.handle,
-        content: item.text,
-        timestamp: Date.now() - (item.hoursAgo * 60 * 60 * 1000 + idx * 19 * 60 * 1000),
-        likes: item.likes,
-        isArtist: false
-      }));
-
-      syncedComments[art.id] = generated;
-      return {
-        ...art,
-        commentsCount: generated.length
-      };
-    } else if (list.length > 0 && art.commentsCount !== list.length) {
+    if (list.length > 0 && art.commentsCount !== list.length) {
       modified = true;
       return {
         ...art,
